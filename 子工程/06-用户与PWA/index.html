@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f7f8fa">
+  <meta name="description" content="旅行规划 App 的账号、行程与离线入口">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="旅程">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/apple-touch-icon.png">
+  <link rel="icon" href="./assets/icon-192.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./src/styles.css?v=20260807">
+  <title>旅程 · 我的旅行</title>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#discover" aria-label="旅程首页">
+        <span class="brand-mark" aria-hidden="true">↗</span>
+        <span>旅程</span>
+      </a>
+      <div class="topbar-actions">
+        <span class="sync-state" id="syncState" data-state="offline"><span class="status-dot"></span><span id="syncText">游客模式</span></span>
+        <button class="icon-button" id="installButton" type="button" aria-label="安装到主屏幕" title="安装到主屏幕" hidden>⇩</button>
+      </div>
+    </header>
+
+    <div class="offline-banner" id="offlineBanner" role="status" hidden>
+      <span class="status-dot"></span>当前离线，已缓存内容仍可查看
+    </div>
+
+    <main class="main-content" id="mainContent" tabindex="-1">
+      <section class="view" data-view="discover" aria-labelledby="discoverTitle">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">TRAVEL DESK</p>
+            <h1 id="discoverTitle">从下一站开始</h1>
+            <p class="lede">浏览地点、保存国家清单，再把想去的地方编成一段可执行的旅程。</p>
+          </div>
+          <span class="heading-index">01</span>
+        </div>
+        <div class="feature-strip">
+          <div><span class="strip-label">最近编辑</span><strong id="recentTripLabel">还没有行程</strong></div>
+          <button class="text-button" type="button" data-go="planner">打开规划 <span aria-hidden="true">→</span></button>
+        </div>
+        <div class="recommendation-shell" id="recommendationShell">
+          <div class="recommendation-toolbar">
+            <button class="secondary-button small" id="recommendationBack" type="button" hidden>返回上级</button>
+            <span id="recommendationBreadcrumb">大洲</span>
+            <button class="text-button small" id="recommendationRefresh" type="button">刷新</button>
+          </div>
+          <div class="recommendation-status" id="recommendationStatus" role="status"></div>
+          <div class="recommendation-content" id="recommendationContent"></div>
+        </div>
+      </section>
+
+      <section class="view" data-view="planner" aria-labelledby="plannerTitle" hidden>
+        <div class="section-heading compact-heading">
+          <div><p class="eyebrow">PLANNER</p><h1 id="plannerTitle">行程规划</h1><p class="lede">把日期、城市和想去的地点放在同一张桌面上。</p></div>
+          <span class="heading-index">02</span>
+        </div>
+        <div class="action-grid">
+          <button class="action-tile" type="button" id="newTripButton"><span class="tile-icon" aria-hidden="true">＋</span><span><strong>新建行程</strong><small>从日期和目的地开始</small></span></button>
+          <button class="action-tile" type="button" data-go="trips"><span class="tile-icon" aria-hidden="true">▤</span><span><strong>我的行程</strong><small>打开已保存的计划</small></span></button>
+        </div>
+        <div class="section-rule"><span>最近行程</span><span id="tripCountLabel">0 个</span></div>
+        <div class="trip-list" id="plannerTripList"></div>
+      </section>
+
+      <section class="view" data-view="guide" aria-labelledby="guideTitle" hidden>
+        <div class="section-heading compact-heading">
+          <div><p class="eyebrow">ON THE ROAD</p><h1 id="guideTitle">当前导览</h1><p class="lede">出发后，只看今天真正需要的安排。</p></div>
+          <span class="heading-index">03</span>
+        </div>
+        <div class="guide-hero" id="guideHero"></div>
+        <div class="empty-panel" id="guideEmpty"><span class="panel-icon" aria-hidden="true">◷</span><div><h2>还没有当前行程</h2><p>在“我的”中选择一个行程，它会出现在这里。</p></div><button class="secondary-button" type="button" data-go="trips">选择行程</button></div>
+      </section>
+
+      <section class="view" data-view="trips" aria-labelledby="tripsTitle" hidden>
+        <div class="section-heading compact-heading">
+          <div><p class="eyebrow">YOUR LISTS</p><h1 id="tripsTitle">我的清单</h1><p class="lede">收藏与行程分别保存，调整行程不会影响长期收藏。</p></div>
+          <span class="heading-index">04</span>
+        </div>
+        <div class="list-tabs" role="tablist" aria-label="我的清单类型">
+          <button class="list-tab is-active" type="button" role="tab" aria-selected="true" data-list-tab="trips">行程 <span id="tabTripCount">0</span></button>
+          <button class="list-tab" type="button" role="tab" aria-selected="false" data-list-tab="countries">国家收藏 <span id="tabCountryCount">0</span></button>
+        </div>
+        <div id="listPanel"></div>
+      </section>
+
+      <section class="view" data-view="account" aria-labelledby="accountTitle" hidden>
+        <div class="section-heading account-heading">
+          <div><p class="eyebrow">ACCOUNT</p><h1 id="accountTitle">我的</h1><p class="lede">账号、当前行程和数据都在这里管理。</p></div>
+          <span class="heading-index">05</span>
+        </div>
+        <div class="account-card" id="accountCard"></div>
+        <div class="settings-section">
+          <div class="section-rule"><span>行程设置</span></div>
+          <div class="setting-row"><span><strong>当前行程</strong><small id="activeTripSetting">未选择</small></span><button class="secondary-button small" type="button" data-go="trips">切换</button></div>
+          <button class="setting-row setting-button" type="button" id="installHelpButton"><span><strong>安装到主屏幕</strong><small>旅行途中更快打开</small></span><span aria-hidden="true">→</span></button>
+        </div>
+        <div class="settings-section data-section">
+          <div class="section-rule"><span>数据管理</span></div>
+          <div class="setting-row"><span><strong>导出我的数据</strong><small>下载一份 JSON 备份</small></span><button class="secondary-button small" type="button" id="exportButton">导出</button></div>
+          <div class="setting-row"><span><strong>删除本地游客数据</strong><small>只清理此设备上的未登录数据</small></span><button class="danger-button small" type="button" id="clearGuestButton">清理</button></div>
+        </div>
+        <p class="config-note" id="configNote" hidden></p>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="主导航">
+      <a href="#discover" class="nav-item is-active" data-nav="discover"><span class="nav-icon" aria-hidden="true">⌖</span><span>发现</span></a>
+      <a href="../04-旅程规划/planner.html" class="nav-item" data-nav="planner"><span class="nav-icon" aria-hidden="true">＋</span><span>规划</span></a>
+      <a href="../05-当前行程导览/guide.html" class="nav-item" data-nav="guide"><span class="nav-icon" aria-hidden="true">◷</span><span>导览</span></a>
+      <a href="#trips" class="nav-item" data-nav="trips"><span class="nav-icon" aria-hidden="true">▤</span><span>清单</span></a>
+      <a href="#account" class="nav-item" data-nav="account"><span class="nav-icon" aria-hidden="true">○</span><span>我的</span></a>
+    </nav>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="modal-backdrop" id="modalBackdrop" hidden>
+    <section class="modal" id="authModal" role="dialog" aria-modal="true" aria-labelledby="authTitle" hidden></section>
+    <section class="modal" id="tripModal" role="dialog" aria-modal="true" aria-labelledby="tripTitle" hidden></section>
+    <section class="modal install-modal" id="installModal" role="dialog" aria-modal="true" aria-labelledby="installTitle" hidden></section>
+  </div>
+
+  <script>window.__TRAVEL_APP_CONFIG__ = { SUPABASE_URL: "https://ogqirzemiceoosfebxgh.supabase.co", SUPABASE_PUBLISHABLE_KEY: "" };</script>
+  <script src="./config/runtime-config.js?v=20260802"></script>
+  <script type="module" src="./src/app.js?v=20260807"></script>
+</body>
+</html>

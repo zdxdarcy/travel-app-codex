@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f5f7f8">
+  <meta name="description" content="查看当前行程，记录实际完成情况和旅途备注">
+  <title>当前行程导览</title>
+  <link rel="stylesheet" href="./src/styles.css?v=20260809">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="../06-用户与PWA/index.html#guide" aria-label="返回旅程应用">
+        <span class="brand-mark" aria-hidden="true">↗</span>
+        <span>旅程</span>
+      </a>
+      <div class="topbar-actions">
+        <span class="sync-state" id="syncState" data-state="loading"><span class="status-dot"></span><span id="syncText">正在读取</span></span>
+        <button class="icon-button" id="refreshButton" type="button" aria-label="刷新行程" title="刷新行程">↻</button>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <div id="app" aria-live="polite">
+        <section class="loading-panel" id="loadingPanel" aria-label="正在加载">
+          <span class="loader" aria-hidden="true"></span>
+          <p>正在读取当前行程</p>
+        </section>
+      </div>
+    </main>
+
+    <nav class="bottom-nav" aria-label="主导航">
+      <a class="nav-item" href="../06-用户与PWA/index.html#discover" data-nav="discover">
+        <span class="nav-icon" aria-hidden="true">⌖</span><span>发现</span>
+      </a>
+      <a class="nav-item" href="../04-旅程规划/planner.html" data-nav="planner">
+        <span class="nav-icon" aria-hidden="true">＋</span><span>规划</span>
+      </a>
+      <a class="nav-item is-active" href="./guide.html" data-nav="guide" aria-current="page">
+        <span class="nav-icon" aria-hidden="true">◷</span><span>导览</span>
+      </a>
+      <a class="nav-item" href="../06-用户与PWA/index.html#trips" data-nav="trips">
+        <span class="nav-icon" aria-hidden="true">▤</span><span>清单</span>
+      </a>
+      <a class="nav-item" href="../06-用户与PWA/index.html#account" data-nav="account">
+        <span class="nav-icon" aria-hidden="true">○</span><span>我的</span>
+      </a>
+    </nav>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <!-- Prefer the shared 06 runtime config; the local file is only a standalone fallback. -->
+  <script src="../06-用户与PWA/config/runtime-config.js?v=20260802"></script>
+  <script src="./config/runtime-config.js?v=20260802"></script>
+  <script type="module" src="./src/guide.js?v=20260809"></script>
+</body>
+</html>
