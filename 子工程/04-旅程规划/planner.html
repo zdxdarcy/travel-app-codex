@@ -247,7 +247,7 @@
   .topbar{height:64px;padding:0 max(20px,calc((100vw - 1120px)/2));display:flex;align-items:center;background:rgba(247,248,250,.96);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:100;backdrop-filter:blur(14px)}
   .topbar-inner{width:100%;max-width:1120px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:16px;min-width:0}
   .brand{display:inline-flex;align-items:center;gap:9px;color:var(--ink);font-size:16px;font-weight:800;letter-spacing:.02em;text-decoration:none;min-width:0}
-  .brand-mark{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:var(--teal);color:#fff;font-size:16px;line-height:1}
+  .brand-mark{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:9px;background:var(--teal);color:#fff;font-size:18px;line-height:1;transform:rotate(-8deg)}
   .topbar-actions{display:flex;align-items:center;gap:10px;min-width:0}
   .topbar-context{color:var(--muted);font-size:10px;font-weight:800;letter-spacing:1.2px;white-space:nowrap}
   .topbar-context b{color:var(--teal);font-size:13px}
@@ -268,6 +268,8 @@
   .field label{margin-bottom:6px;color:var(--muted);font-size:11px;font-weight:800;letter-spacing:.02em}
   .field input,.logi-row input,.meals .mcell input,.attr-toolbar .custom-input,.attr-toolbar .custom-tag{min-width:0;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);box-shadow:none}
   .field input{padding:10px 11px;font-size:14px}
+  .field textarea{width:100%;min-height:58px;padding:9px 11px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);font:inherit;font-size:13px;resize:vertical}
+  .field textarea:focus{border-color:var(--teal);outline:2px solid rgba(23,107,91,.12)}
   .field input:focus,.logi-row input:focus,.meals .mcell input:focus,.attr-toolbar .custom-input:focus,.attr-toolbar .custom-tag:focus{border-color:var(--teal);outline:2px solid rgba(23,107,91,.12)}
   .tripname-row{margin-top:14px}
   .setup-actions{gap:9px;margin-top:17px}
@@ -292,6 +294,11 @@
   .city-add-select{max-width:240px;border:1px solid var(--line);border-radius:6px;padding:7px 9px;color:var(--ink);font-size:12px}
   .cs-actions{margin-top:17px;gap:10px}
   .cs-actions .hint{max-width:680px}
+  .base-unit-picker{display:grid;grid-template-columns:minmax(160px,260px) 1fr;gap:10px;align-items:center;margin:14px 0 10px;padding:11px 12px;background:#f5faf8;border:1px solid #c4ddd6;border-radius:6px}
+  .base-unit-picker label{font-size:12px;font-weight:800;color:var(--teal-dark)}
+  .base-unit-picker select{width:100%;min-width:0;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);font-size:12px}
+  .base-unit-picker select:focus{border-color:var(--teal);outline:2px solid rgba(23,107,91,.12)}
+  .base-unit-hint{grid-column:1 / -1;margin:0;font-size:11px;color:var(--muted);line-height:1.45}
   .banner{display:flex;align-items:flex-start;gap:12px;margin:0 0 12px;padding:16px;background:var(--teal-soft);border:1px solid #c4ddd6;border-radius:8px}
   .banner .b-main{font-size:15px;line-height:1.4}
   .banner .b-sub{font-size:12px;color:var(--muted)}
@@ -304,13 +311,17 @@
   .daytab:hover{color:var(--teal-dark);background:var(--teal-soft)}
   .daytab.active{background:var(--teal);color:#fff}
   .daytabs .spacer{min-width:12px}
-  .day-card{margin-bottom:14px;padding:18px;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);scroll-margin-top:142px}
+  .day-region{scroll-margin-top:calc(64px + 12px)}
+  .day-carousel{width:100%;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scrollbar-width:thin;-webkit-overflow-scrolling:touch;touch-action:pan-x;}
+  .day-track{display:flex;align-items:flex-start;width:100%}
+  .day-card{flex:0 0 100%;width:100%;min-width:0;overflow:hidden;margin:0;padding:18px;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);scroll-snap-align:start;scroll-snap-stop:always}
   .day-head{gap:10px;padding-bottom:11px;margin-bottom:13px;border-bottom:1px solid var(--line)}
   .day-title{font-size:18px;line-height:1.25}
   .day-date{font-size:12px;color:var(--muted)}
   .day-start{margin-bottom:7px;color:var(--teal-dark);font-size:12px;font-weight:800}
   .day-cities{margin-bottom:12px;font-size:12px;color:var(--muted)}
   .day-cities b{color:var(--ink)}
+  .day-notes{margin:0 0 12px}.day-notes label{display:block;margin-bottom:4px;color:var(--muted);font-size:11px;font-weight:800}.day-notes textarea{width:100%;min-height:48px;padding:8px 9px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);font:inherit;font-size:12px;resize:vertical}.day-notes textarea:focus{border-color:var(--teal);outline:2px solid rgba(23,107,91,.12)}
   .attr-toolbar{gap:7px;margin-bottom:9px}
   .attr-toolbar .custom-input,.attr-toolbar .custom-tag{padding:8px 9px;font-size:12px}
   .attr-toolbar .custom-tag{flex-basis:96px}
@@ -365,26 +376,35 @@
   .nav-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;min-width:0;color:#879096;font-size:10px;font-weight:700;text-decoration:none}
   .nav-icon{display:flex;align-items:center;justify-content:center;width:28px;height:25px;border-radius:8px;font-size:20px;line-height:1}
   .nav-item.is-active{color:var(--teal)}.nav-item.is-active .nav-icon{background:var(--teal-soft)}
-  #planArea{padding-bottom:calc(var(--nav-height) + 42px + env(safe-area-inset-bottom)) !important}
+  .plan-exports{margin-top:18px;padding:16px;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow)}
+  .plan-exports-title{margin:0 0 8px;font-size:13px;font-weight:800;color:var(--ink)}
+  .plan-exports .export-bar{margin-left:0}
+  .save-fab{position:fixed;right:max(16px,env(safe-area-inset-right));bottom:calc(var(--nav-height) + 18px + env(safe-area-inset-bottom));z-index:120;width:52px;height:52px;min-width:52px;min-height:52px;padding:0;border:1px solid #0e5146;border-radius:50%;background:var(--teal);color:#fff;box-shadow:0 8px 22px rgba(23,35,43,.2);display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .save-fab:hover{background:var(--teal-dark)}
+  .save-fab:focus-visible{outline:3px solid rgba(23,107,91,.25);outline-offset:3px}
+  .save-fab .save-icon{width:23px;height:23px;display:block;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  #planArea{padding-bottom:calc(var(--nav-height) + 112px + env(safe-area-inset-bottom)) !important}
   @media (max-width:620px){
     .topbar{height:58px;padding:0 16px}.topbar-context{display:none}.topbar-back,.planner-auth-button{padding:6px 8px;font-size:11px}
     .wrap{padding-right:16px;padding-left:16px}.stepper{gap:18px;margin-top:20px}.step{font-size:11px}
     .setup,#citySelectArea{padding:17px 16px;margin-bottom:16px}.setup h2{font-size:15px}.grid4{grid-template-columns:1fr;gap:11px}
+    .base-unit-picker{grid-template-columns:1fr;gap:6px;margin-top:12px}.base-unit-hint{grid-column:auto}
     .setup-actions{align-items:stretch;flex-direction:column}.setup-actions .btn{width:100%}.setup-actions .hint{line-height:1.45}
     .cs-row{display:block;padding:13px 0}.cs-label{margin-bottom:8px}.cs-controls{display:block}.city-chips{margin-bottom:8px}.city-add-select{width:100%;max-width:none}
     .cs-actions{align-items:stretch;flex-direction:column}.cs-actions .btn{width:100%}.cs-actions .hint{line-height:1.5}
-    .daytabs{top:58px;margin-right:-16px;margin-left:-16px;padding:7px 16px;border-right:0;border-left:0;border-radius:0;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}.daytabs::-webkit-scrollbar{display:none}.daytab{flex:0 0 auto}.daytabs .spacer{display:none}
-    .daytabs .btn{flex:0 0 auto}.day-card{padding:15px 13px;margin-bottom:12px;scroll-margin-top:120px}.day-head{align-items:flex-start;flex-wrap:wrap}.day-auto{margin-left:auto}.day-cities{line-height:1.5}
+    .day-region{scroll-margin-top:calc(58px + 8px)}
+    .daytabs{top:58px;margin-right:-16px;margin-left:-16px;padding:7px 16px;border-right:0;border-left:0;border-radius:0;overflow:visible;flex-wrap:wrap;scrollbar-width:none}.daytab{flex:0 0 auto}.daytabs .spacer{display:none}
+    .daytabs .btn{flex:0 0 auto}.day-card{padding:15px 13px;margin:0}.day-head{align-items:flex-start;flex-wrap:wrap}.day-auto{margin-left:auto}.day-cities{line-height:1.5}
     .attr-toolbar{align-items:stretch}.attr-toolbar .custom-input{flex:1 1 100%;width:100%}.attr-toolbar .custom-tag{flex:1 1 calc(100% - 105px);width:auto}.attr-toolbar .hint{flex:1 1 100%;line-height:1.45}
     .attr-item{align-items:flex-start;flex-wrap:wrap}.attr-main{order:2;flex:1 1 calc(100% - 42px);padding-top:1px}.attr-check{order:1;margin-top:3px}.drag-handle{order:3;margin-top:2px}.vt-badge{order:4;margin-left:34px}.attr-move{order:5;flex:1 1 110px;max-width:none;min-width:0;margin-left:34px}.attr-del{order:6;margin-left:auto}
     .logi-row{grid-template-columns:1fr;gap:5px}.logi-row > label{font-size:11px}.meals{grid-template-columns:1fr;gap:9px}
-    .banner{display:block;padding:14px}.banner .b-sub{margin-top:4px}.export-bar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:12px}.export-bar .btn{width:100%;padding:8px 6px;font-size:11px}
+    .banner{display:block;padding:14px}.banner .b-sub{margin-top:4px}.plan-exports{padding:14px}.export-bar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:0}.export-bar .btn{width:100%;padding:8px 6px;font-size:11px}
     .selbar{left:12px;right:12px;max-width:none;transform:none;flex-wrap:wrap;justify-content:center}.selbar .sel-count{flex:1 1 100%;text-align:center}.selbar select{flex:1;max-width:none}.selbar .btn{flex:0 1 auto}
     .trip-row{align-items:flex-start;flex-wrap:wrap}.trip-acts{width:100%;margin-left:0}.trip-acts .btn{flex:1}
     .taf-modal-wide{width:100%}
   }
   @media print{
-    .topbar,.bottom-nav{display:none!important}.wrap{max-width:none;padding:0 12px}#planArea{padding-bottom:0!important}.daytabs{top:0}
+    .topbar,.bottom-nav,.save-fab{display:none!important}.wrap{max-width:none;padding:0 12px}#planArea{padding-bottom:0!important}.daytabs{top:0}.day-carousel{overflow:visible}.day-track{display:block}.day-card{break-inside:avoid}
   }
 </style>
 </head>
@@ -421,6 +441,7 @@
       <div class="field"><label>返程地点</label><input type="text" id="returnLoc" placeholder="如 慕尼黑机场"></div>
     </div>
     <div class="tripname-row field"><label>行程名称（可选，用于云端保存）</label><input type="text" id="tripName" placeholder="如 我的行程 2026"></div>
+    <div class="tripnote-row field"><label>行程备注（可选）</label><textarea id="tripNotes" rows="2" maxlength="1000" placeholder="如：希望节奏宽松，优先安排博物馆"></textarea></div>
     <div class="setup-actions">
       <button class="btn" id="computeBtn" type="button">计算天数并生成日程</button>
       <button class="btn ghost" id="resetBtn" type="button">清除重设</button>
@@ -432,7 +453,12 @@
   <!-- 第一步：城市选择 -->
   <div id="citySelectArea" style="display:none">
     <div class="cs-title">② 选择每天的到访城市</div>
-    <div class="cs-sub">用下拉框为每一天添加要玩的城市（可多选，一天可玩多个城市）；下拉框已自动排除没有可选景点的城市。选中后显示在上方标签，可点 × 移除。</div>
+    <div class="cs-sub">先选择国家或国家下的州/省作为基本单元，再按基本单元为每一天添加城市（可多选，一天可玩多个城市）；下拉框会自动排除没有可选景点的城市。选中后显示在上方标签，可点 × 移除。</div>
+    <div class="base-unit-picker" id="baseUnitPicker">
+      <label for="baseUnitSelect">基本单元</label>
+      <select id="baseUnitSelect" aria-describedby="baseUnitHint"><option value="">先选择国家或州/省…</option></select>
+      <p class="base-unit-hint" id="baseUnitHint"></p>
+    </div>
     <div id="citySelect"></div>
     <div class="cs-actions">
       <button class="btn" id="enterPlanBtn" type="button">进入行程安排 →</button>
@@ -445,9 +471,31 @@
 <main class="wrap" id="planArea" style="display:none;padding-bottom:80px">
   <div class="banner" id="banner"></div>
   <div class="feasibility" id="feasibility" aria-live="polite"></div>
-  <div class="daytabs" id="dayTabs"></div>
-  <div id="days"></div>
+  <section class="day-region" id="dayRegion" aria-label="每日安排">
+    <div class="daytabs" id="dayTabs" role="tablist" aria-label="日程切换"></div>
+    <div class="day-carousel" id="dayCarousel" role="region" aria-label="每日安排，可横向切换" tabindex="0">
+      <div id="days" class="day-track"></div>
+    </div>
+  </section>
+  <section class="plan-exports" id="planExports" aria-label="导出行程">
+    <h2 class="plan-exports-title">导出与行程管理</h2>
+    <div class="export-bar">
+      <button class="btn ghost" onclick="copyPlan()">复制全文</button>
+      <button class="btn ghost" onclick="downloadTxt()">下载 .txt</button>
+      <button class="btn ghost" onclick="downloadJson()">下载 JSON</button>
+      <button class="btn ghost" onclick="openTrips()">我的行程</button>
+      <button class="btn ghost" onclick="window.print()">打印</button>
+    </div>
+  </section>
 </main>
+
+<button class="save-fab" id="saveTripFab" type="button" onclick="saveTrip()" aria-label="保存到云端" title="保存到云端">
+  <svg class="save-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"></path>
+    <path d="M17 21v-8H7v8"></path>
+    <path d="M7 3v5h8"></path>
+  </svg>
+</button>
 
 <!-- 多选操作条 -->
 <div class="selbar" id="selBar"></div>
@@ -527,6 +575,11 @@ const SUPABASE_URL = APP_CONFIG.supabaseUrl || RUNTIME_CONFIG.SUPABASE_URL || "h
 const SUPABASE_ANON = APP_CONFIG.supabasePublishableKey || RUNTIME_CONFIG.SUPABASE_PUBLISHABLE_KEY || "__ENV_SUPABASE_PUBLISHABLE_KEY__";
 const SUPABASE_READY = Boolean(SUPABASE_URL && SUPABASE_ANON && !/^__ENV_/.test(SUPABASE_ANON));
 const PLAN_KEY = "taf-travel-plan";
+const GUEST_TRIPS_KEY = "travel-app-guest-v1";
+const PLANNER_PARAMS = new URLSearchParams(window.location.search);
+const REQUESTED_TRIP_ID = PLANNER_PARAMS.get("tripId") || PLANNER_PARAMS.get("editTripId") || "";
+const REQUESTED_NEW_TRIP = /^(1|true|yes)$/i.test(PLANNER_PARAMS.get("newTrip") || "") || PLANNER_PARAMS.get("mode") === "new";
+const REQUESTED_DAY = Number.parseInt(PLANNER_PARAMS.get("day") || PLANNER_PARAMS.get("dayIndex") || "", 10);
 
 // ===== 可配置项（按国家 / 项目修改） =====
 const COUNTRY = "德国";        // 用于导出标题与说明文案
@@ -538,17 +591,58 @@ const cityByEn = {};
 CITIES.forEach(c => { cityByEn[c.cityEn || c.city] = c; });
 function ckOf(cityEn){ return "taf-sel-" + cityEn; }
 
+function countryKeyOf(city){ return String(city && (city.countryEn || city.country) || COUNTRY_EN); }
+function countryLabelOf(city){ return String(city && (city.country || city.countryEn) || COUNTRY); }
+function regionLabelOf(city){
+  const raw=String(city && (city.region || city.province || city.state || city.regionName || city.stateName) || "");
+  return raw.split(/\s*[·|/]\s*/)[0].trim();
+}
+function regionKeyOf(city){ return String(city && (city.regionEn || city.provinceEn || city.stateEn) || regionLabelOf(city)); }
+function buildBaseUnits(cities){
+  const grouped=new Map();
+  cities.forEach(city=>{
+    const countryKey=countryKeyOf(city);
+    if(!grouped.has(countryKey)) grouped.set(countryKey,{key:countryKey,label:countryLabelOf(city),flag:city.flag||"",regions:new Map()});
+    const country=grouped.get(countryKey), regionLabel=regionLabelOf(city), regionKey=regionKeyOf(city);
+    if(regionLabel && regionKey && !country.regions.has(regionKey)) country.regions.set(regionKey,{key:regionKey,label:regionLabel});
+  });
+  const units=[];
+  grouped.forEach(country=>{
+    const regions=[...country.regions.values()], regional=regions.length>1;
+    units.push({key:`country:${country.key}`,type:"country",countryKey:country.key,label:country.label,flag:country.flag,cityCount:cities.filter(c=>countryKeyOf(c)===country.key).length,regional});
+    if(regional) regions.forEach(region=>units.push({key:`region:${country.key}:${region.key}`,type:"region",countryKey:country.key,regionKey:region.key,label:`${country.label} · ${region.label}`,regionLabel:region.label,cityCount:cities.filter(c=>countryKeyOf(c)===country.key && regionKeyOf(c)===region.key).length,regional:true}));
+  });
+  return units;
+}
+const BASE_UNITS = buildBaseUnits(CITIES);
+const baseUnitByKey = Object.fromEntries(BASE_UNITS.map(unit=>[unit.key,unit]));
+function citiesForBaseUnit(unitKey){
+  const unit=baseUnitByKey[unitKey];
+  if(!unit) return [];
+  return CITIES.filter(city=>countryKeyOf(city)===unit.countryKey && (unit.type==="country" || regionKeyOf(city)===unit.regionKey));
+}
+function baseUnitForCity(city){
+  const countryKey=countryKeyOf(city), regionKey=regionKeyOf(city);
+  return baseUnitByKey[`region:${countryKey}:${regionKey}`] ? `region:${countryKey}:${regionKey}` : `country:${countryKey}`;
+}
+function baseUnitLabel(unitKey){ return baseUnitByKey[unitKey]?.label || ""; }
+function normalizeVisitMode(value){ return ["inside","outside","not_planned"].includes(value) ? value : "not_planned"; }
+
 /* =========================== 状态 =========================== */
-let plan = loadPlan() || emptyPlan();
+let editTripId = REQUESTED_TRIP_ID;
+let newTrip = REQUESTED_NEW_TRIP;
+let plan = (newTrip || editTripId) ? emptyPlan() : (loadPlan() || emptyPlan());
 let loggedIn = false;
 let confirmedByCity = {};   // ck -> Set(attractionId)  登录后=精选清单
 let confirmedStates = {};   // ck -> { attrId: "inside"|"outside" }
 let catalogByKey = {};      // city::slug -> core catalog UUID and user-list UUID
 let selSet = new Set();     // 多选的景点键：city::id
 let openPanels = new Set(); // 已展开「添加景点」面板的天索引
+let entryHydrationStarted = false;
 
 function emptyPlan(){
-  return { schemaVersion:2, departDate:"", departLocation:"", returnDate:"", returnLocation:"", tripName:"", tripId:"", snapshotRevision:0,
+  return { schemaVersion:2, departDate:"", departLocation:"", returnDate:"", returnLocation:"", tripName:"", notes:"", tripId:"", snapshotRevision:0,
+           baseUnit:BASE_UNITS.length===1 ? BASE_UNITS[0].key : "", baseUnitType:"", baseUnitLabel:"", activeDayIndex:0, loadedFromCloud:false,
            enteredPlan:false, days:[] };
 }
 function normalizeItem(item,index){
@@ -561,7 +655,17 @@ function normalizeItem(item,index){
     name: item.name || "",
     tag: item.tag || "",
     duration: item.duration || "",
-    hours: item.hours || ""
+    hours: item.hours || "",
+    notes: item.notes || "",
+    visitMode: normalizeVisitMode(item.visitMode || item.visit_mode),
+    attractionId: item.attractionId || item.attraction_id || "",
+    sourceListItemId: item.sourceListItemId || item.source_list_item_id || "",
+    sourceSlug: item.sourceSlug || item.source_slug || "",
+    sourceNameEn: item.sourceNameEn || item.source_name_en || "",
+    titleSnapshot: item.titleSnapshot || item.title_snapshot || item.name || "",
+    cityNameSnapshot: item.cityNameSnapshot || item.city_name_snapshot || "",
+    metadata: item.metadata && typeof item.metadata === "object" ? item.metadata : {},
+    custom_payload: item.custom_payload && typeof item.custom_payload === "object" ? item.custom_payload : {}
   };
 }
 function normalizeDay(day){
@@ -591,7 +695,6 @@ function addDays(dateStr,n){ const d=new Date(dateStr+"T00:00:00"); d.setDate(d.
 function fmtDate(d){ const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0"); return `${y}-${m}-${day} ${WD[d.getDay()]}`; }
 function daysBetween(a,b){ return Math.round((new Date(b+"T00:00:00")-new Date(a+"T00:00:00"))/86400000); }
 function scrollIntoViewSafe(el){ try{ if(el) el.scrollIntoView({behavior:"smooth",block:"start"}); }catch(_){} }
-function scrollToSafe(opts){ try{ window.scrollTo(opts||{top:0,behavior:"smooth"}); }catch(_){} }
 
 /* =========================== 景点池 / 放置 =========================== */
 function getPoolAttractions(city){
@@ -634,7 +737,7 @@ function startOfDay(d){
 function sourceAttraction(item){
   if(!item || item.custom) return null;
   const city=cityByEn[item.city];
-  return city && (city.attractions||[]).find(a=>a.id===item.id) || item;
+  return city && (city.attractions||[]).find(a=>a.id===(item.sourceSlug||item.id)) || item;
 }
 function durationMinutes(text){
   const s=String(text||"").replace(/小时/g,"h").replace(/分钟/g,"min");
@@ -690,7 +793,7 @@ function renderFeasibility(){
 /* =========================== 天数计算 =========================== */
 function computeDays(){
   const dd=$("departDate").value, rd=$("returnDate").value;
-  const dl=$("departLoc").value.trim(), rl=$("returnLoc").value.trim(), tn=$("tripName").value.trim();
+  const dl=$("departLoc").value.trim(), rl=$("returnLoc").value.trim(), tn=$("tripName").value.trim(), notes=$("tripNotes").value.trim();
   $("setupErr").textContent="";
   if(!dd||!rd){ $("setupErr").textContent="请先填写出发与返程日期。"; return; }
   const diff=daysBetween(dd,rd);
@@ -699,7 +802,7 @@ function computeDays(){
   const old=(plan.days||[]).map(normalizeDay);
   const days=[];
   for(let i=0;i<n;i++){ const day=old[i] || normalizeDay({}); day.dayIndex=i; day.date=fmtDate(addDays(dd,i)).slice(0,10); days.push(day); }
-  plan.departDate=dd; plan.departLocation=dl; plan.returnDate=rd; plan.returnLocation=rl; plan.tripName=tn; plan.days=days;
+  plan.departDate=dd; plan.departLocation=dl; plan.returnDate=rd; plan.returnLocation=rl; plan.tripName=tn; plan.notes=notes; plan.days=days;
   plan.enteredPlan=false; selSet.clear(); openPanels.clear();
   savePlan();
   fillSetupInputs();
@@ -711,12 +814,14 @@ function computeDays(){
 function fillSetupInputs(){
   $("departDate").value=plan.departDate||""; $("departLoc").value=plan.departLocation||"";
   $("returnDate").value=plan.returnDate||""; $("returnLoc").value=plan.returnLocation||"";
-  $("tripName").value=plan.tripName||"";
+  $("tripName").value=plan.tripName||""; $("tripNotes").value=plan.notes||"";
 }
 function resetAll(){
   if(!confirm("确定清除当前行程设置并重新开始？")) return;
-  plan=emptyPlan(); selSet.clear(); openPanels.clear();
-  try{ localStorage.removeItem(PLAN_KEY); }catch(e){}
+  const currentTripKey=planStorageKey(plan.tripId||editTripId);
+  plan=emptyPlan(); editTripId=""; newTrip=true; entryHydrationStarted=true; selSet.clear(); openPanels.clear();
+  try{ localStorage.removeItem(currentTripKey); if(currentTripKey!==PLAN_KEY) localStorage.removeItem(PLAN_KEY); }catch(e){}
+  updatePlannerUrl({newTrip:true});
   $("planArea").style.display="none"; $("citySelectArea").style.display="none";
   setStep(1); fillSetupInputs(); $("setupErr").textContent="";
 }
@@ -728,17 +833,55 @@ function setStep(n){
 }
 
 /* =========================== 第一步：城市选择（下拉框） =========================== */
+function syncBaseUnitMeta(){
+  const unit=baseUnitByKey[plan.baseUnit];
+  plan.baseUnitType=unit?.type||"";
+  plan.baseUnitLabel=unit?.label||"";
+}
+function plannerCities(){ return plan.baseUnit ? citiesForBaseUnit(plan.baseUnit) : []; }
+function inferBaseUnitFromPlan(){
+  if(baseUnitByKey[plan.baseUnit]) return plan.baseUnit;
+  const selected=tripCities();
+  const units=[...new Set(selected.map(cen=>baseUnitForCity(cityByEn[cen])).filter(Boolean))];
+  if(units.length===1) return units[0];
+  const countries=[...new Set(selected.map(cen=>countryKeyOf(cityByEn[cen])).filter(Boolean))];
+  if(countries.length===1 && baseUnitByKey[`country:${countries[0]}`]) return `country:${countries[0]}`;
+  return BASE_UNITS.length===1 ? BASE_UNITS[0].key : "";
+}
+function renderBaseUnitPicker(){
+  const picker=$("baseUnitSelect"), hint=$("baseUnitHint"); if(!picker) return;
+  const current=baseUnitByKey[plan.baseUnit] ? plan.baseUnit : inferBaseUnitFromPlan();
+  if(current && current!==plan.baseUnit){ plan.baseUnit=current; syncBaseUnitMeta(); }
+  const countries=BASE_UNITS.filter(unit=>unit.type==="country");
+  const regions=BASE_UNITS.filter(unit=>unit.type==="region");
+  let html='<option value="">先选择国家或州/省…</option>';
+  if(countries.length) html+='<optgroup label="国家">'+countries.map(unit=>`<option value="${escapeHtml(unit.key)}">${escapeHtml(`${unit.flag||""} ${unit.label} · ${unit.cityCount} 座城市`)}</option>`).join("")+'</optgroup>';
+  if(regions.length) html+='<optgroup label="国家下的州 / 省 / 区域">'+regions.map(unit=>`<option value="${escapeHtml(unit.key)}">${escapeHtml(`${unit.flag||""} ${unit.label} · ${unit.cityCount} 座城市`)}</option>`).join("")+'</optgroup>';
+  picker.innerHTML=html; picker.value=plan.baseUnit||"";
+  if(!picker.dataset.bound){
+    picker.addEventListener("change",()=>{
+      plan.baseUnit=picker.value; syncBaseUnitMeta();
+      savePlan(); renderCitySelect();
+    });
+    picker.dataset.bound="1";
+  }
+  const unit=baseUnitByKey[plan.baseUnit];
+  hint.textContent=unit?.regional
+    ? `${unit.label}包含多个州/区域；选择州/区域后，下面的城市列表只显示该基本单元内的城市。选择国家可保留德国多城市行程。`
+    : unit ? `已选择「${unit.label}」，下面的城市列表会按该基本单元筛选。` : "先选基本单元，再为每天添加城市。";
+}
 // 下拉框可选城市：有可选景点（登录后=精选清单非空）且当天尚未选入
 function availableCities(dayIdx){
   const day = plan.days[dayIdx];
   if(!day) return [];
   const inDay = new Set(day.cities);
-  return CITIES.filter(c=>{ return getPoolAttractions(c).length>0 && !inDay.has(c.cityEn||c.city); });
+  return plannerCities().filter(c=>{ return getPoolAttractions(c).length>0 && !inDay.has(c.cityEn||c.city); });
 }
 function renderCitySelect(){
   const days=plan.days;
   if(!days.length){ $("citySelectArea").style.display="none"; return; }
   $("citySelectArea").style.display="block";
+  renderBaseUnitPicker();
   let html="";
   days.forEach((day,d)=>{
     const dateStr=escapeHtml(fmtDate(addDays(plan.departDate,d)));
@@ -787,7 +930,7 @@ function enterPlan(){
   if(!plan.days.length){ showToast("请先填写日期并生成日程"); return; }
   // 计算「有可用景点但未被任何一天选择的城市」
   const trip=new Set(tripCities());
-  const giveUp=CITIES.filter(c=> getPoolAttractions(c).length>0 && !trip.has(c.cityEn||c.city) && !isExcludedPlace(c.cityEn||c.city));
+  const giveUp=plannerCities().filter(c=> getPoolAttractions(c).length>0 && !trip.has(c.cityEn||c.city) && !isExcludedPlace(c.cityEn||c.city));
   if(giveUp.length){
     $("giveUpList").innerHTML=giveUp.map(c=>`<span class="giveup-chip">${c.flag} ${escapeHtml(c.city)}</span>`).join("");
     $("giveUpModal").classList.add("open");
@@ -807,7 +950,7 @@ function doEnterPlan(){
   $("citySelectArea").style.display="none";
   setStep(2);
   renderPlan();
-  scrollToSafe({top:0,behavior:"smooth"});
+  focusPlanArea(plan.activeDayIndex||0);
 }
 function backToCities(){
   plan.enteredPlan=false; savePlan();
@@ -829,7 +972,7 @@ function autoFillDay(d, force){
     if(inPrev || inNext) return;                  // 多天城市不在默认填充范围
     if(isExcludedPlace(cen)) return;              // 排除出发/到达城市
     const city=cityByEn[cen]; if(!city) return;
-    getPoolAttractions(city).forEach(a=>{ if(placedDay(cen,a.id)<0) day.attractions.push({city:cen, id:a.id, name:a.name, tag:a.tag, duration:a.duration, hours:a.hours||""}); });
+    getPoolAttractions(city).forEach(a=>{ if(placedDay(cen,a.id)<0) day.attractions.push({city:cen, id:a.id, sourceSlug:a.id, name:a.name, titleSnapshot:a.name, tag:a.tag, duration:a.duration, hours:a.hours||"", visitMode:getState(cen,a.id)||"not_planned"}); });
   });
 }
 function autoFillAll(){ plan.days.forEach((_,d)=>autoFillDay(d,true)); }
@@ -847,41 +990,92 @@ function renderPlan(){
 function renderBanner(){
   const n=plan.days.length;
   const selCount = Object.keys(confirmedByCity).length;
+  const cityCount = plan.baseUnit ? plannerCities().length : CITIES.length;
   $("banner").innerHTML =
     `<div><div class="b-main">📍 ${escapeHtml(plan.departLocation||"出发地")} → 🏁 ${escapeHtml(plan.returnLocation||"返程地")}</div>`+
-    `<div class="b-sub">${n} 天 ${n-1} 晚 ｜ ${plan.departDate||"?"} ~ ${plan.returnDate||"?"} ｜ ${CITIES.length} 座城市可选`+
-    (loggedIn? ` ｜ 已载入 ${selCount} 座城市的精选清单`:` ｜ 未登录：显示全部景点`) +`</div></div>`+
-    `<div class="export-bar">`+
-      `<button class="btn ghost" onclick="copyPlan()">复制全文</button>`+
-      `<button class="btn ghost" onclick="downloadTxt()">下载 .txt</button>`+
-      `<button class="btn ghost" onclick="downloadJson()">下载 JSON</button>`+
-      `<button class="btn ghost" onclick="openTrips()">📂 我的行程</button>`+
-      `<button class="btn" onclick="saveTrip()">💾 保存云端</button>`+
-      `<button class="btn ghost" onclick="window.print()">打印</button>`+
-    `</div>`;
+    `<div class="b-sub">${n} 天 ${n-1} 晚 ｜ ${plan.departDate||"?"} ~ ${plan.returnDate||"?"} ｜ ${cityCount} 座城市可选`+
+    (plan.baseUnitLabel ? ` ｜ 基本单元：${escapeHtml(plan.baseUnitLabel)}` : "")+
+    (loggedIn? ` ｜ 已载入 ${selCount} 座城市的精选清单`:` ｜ 未登录：显示全部景点`) +`</div></div>`;
 }
 function renderTabs(){
-  let html=plan.days.map((_,d)=>`<button class="daytab" data-day="${d}" onclick="goDay(${d})">第${d+1}天</button>`).join("");
+  let html=plan.days.map((_,d)=>`<button class="daytab" role="tab" aria-controls="day-${d}" aria-selected="${d===plan.activeDayIndex}" data-day="${d}" onclick="goDay(${d})">第${d+1}天</button>`).join("");
   html+=`<span class="spacer"></span><button class="btn ghost sm" onclick="backToCities()">← 修改城市</button>`;
   $("dayTabs").innerHTML=html;
 }
-function goDay(d){ const el=document.getElementById("day-"+d); scrollIntoViewSafe(el);
-  document.querySelectorAll(".daytab").forEach(t=>t.classList.toggle("active", +t.dataset.day===d)); }
-function stateBadge(cityEn, attrId){
-  const s=getState(cityEn,attrId);
+function updateDayTabs(d,persist){
+  const max=Math.max(0,plan.days.length-1); d=Math.max(0,Math.min(max,Number(d)||0));
+  plan.activeDayIndex=d;
+  document.querySelectorAll(".daytab").forEach(t=>{
+    const active=+t.dataset.day===d;
+    t.classList.toggle("active",active); t.setAttribute("aria-selected",String(active));
+  });
+  if(persist) savePlan();
+}
+function setCarouselDay(d,behavior="smooth"){
+  const carousel=$("dayCarousel"); if(!carousel || !plan.days.length) return;
+  const max=Math.max(0,plan.days.length-1); d=Math.max(0,Math.min(max,Number(d)||0));
+  updateDayTabs(d,false);
+  const left=d*(carousel.clientWidth||0);
+  try{ carousel.scrollTo({left,behavior}); }catch(_){ carousel.scrollLeft=left; }
+  if(!carousel.clientWidth) carousel.scrollLeft=left;
+}
+function bindDayCarousel(){
+  const carousel=$("dayCarousel"); if(!carousel || carousel.dataset.bound) return;
+  let frame=0;
+  carousel.addEventListener("scroll",()=>{
+    if(frame) return;
+    frame=window.requestAnimationFrame(()=>{
+      frame=0;
+      const width=carousel.clientWidth||1;
+      updateDayTabs(Math.round(carousel.scrollLeft/width),true);
+    });
+  },{passive:true});
+  carousel.addEventListener("keydown",event=>{
+    if(["ArrowLeft","ArrowRight","Home","End"].includes(event.key)){
+      event.preventDefault();
+      const current=plan.activeDayIndex||0;
+      const target=event.key==="ArrowLeft"?current-1:event.key==="ArrowRight"?current+1:event.key==="Home"?0:plan.days.length-1;
+      goDay(target);
+    }
+  });
+  carousel.dataset.bound="1";
+}
+function goDay(d){
+  updateDayTabs(d,true);
+  setCarouselDay(d,"smooth");
+}
+function focusPlanArea(dayIndex){
+  const fallback=Number.isInteger(dayIndex) ? dayIndex : (plan.activeDayIndex||0);
+  const target=Number.isInteger(REQUESTED_DAY) ? REQUESTED_DAY : fallback;
+  const focus=()=>{
+    const region=$("dayRegion"); if(!region) return;
+    const topbar=document.querySelector(".topbar");
+    const topbarHeight=topbar ? topbar.getBoundingClientRect().height : (window.innerWidth<=620 ? 58 : 64);
+    const scrollTop=window.scrollY || document.documentElement.scrollTop || 0;
+    const absoluteTop=scrollTop+region.getBoundingClientRect().top;
+    const top=Math.max(0,absoluteTop-topbarHeight-8);
+    try{ window.scrollTo({top,behavior:"auto"}); }catch(_){ window.scrollTo(0,top); }
+    setCarouselDay(target,"auto");
+  };
+  // Layout is synchronous, but retry after paint so long reminders cannot displace the target.
+  focus();
+  window.requestAnimationFrame(()=>{ focus(); window.requestAnimationFrame(focus); });
+}
+function stateBadge(cityEn, attrId, visitMode){
+  const s=normalizeVisitMode(visitMode||getState(cityEn,attrId));
   if(s==="inside") return '<span class="vt-badge vt-inside">入内</span>';
   if(s==="outside") return '<span class="vt-badge vt-outside">外部</span>';
   return '';
 }
 function attrItem(a,d,idx){
   const isCustom=!!a.custom;
-  const cen=a.city, city=cityByEn[cen];
+  const cen=a.city, city=cityByEn[cen], cityLabel=city?(city.flag+" "+city.city):(a.cityNameSnapshot||cen||"自定义安排");
   const checked = selSet.has(cen+"::"+a.id)?"checked":"";
   const dayOpts = plan.days.map((_,i)=> i).filter(i=>i!==d).map(i=>`<option value="${i}">第${i+1}天</option>`).join("");
-  const badge = isCustom ? `<input type="text" class="vt-custom-edit" value="${escapeHtml(a.tag||"自定义")}" data-day="${d}" data-idx="${idx}" oninput="setCustomTag(${d},${idx},this.value)" title="点击修改标签">` : stateBadge(cen,a.id);
+  const badge = isCustom ? `<input type="text" class="vt-custom-edit" value="${escapeHtml(a.tag||"自定义")}" data-day="${d}" data-idx="${idx}" oninput="setCustomTag(${d},${idx},this.value)" title="点击修改标签">` : stateBadge(cen,a.id,a.visitMode);
   const cityLine = isCustom
     ? `<div class="attr-city">🗒 自定义安排</div>`
-    : `<div class="attr-city">${city?city.flag+" "+escapeHtml(city.city):escapeHtml(cen)}</div>`;
+    : `<div class="attr-city">${escapeHtml(cityLabel)}</div>`;
   return `<div class="attr-item${isCustom?' attr-custom':''}" data-day="${d}" data-idx="${idx}">`+
     `<input type="checkbox" class="attr-check" data-city="${escapeHtml(cen)}" data-id="${escapeHtml(a.id)}" ${checked}>`+
     `<span class="drag-handle" title="拖动排序">⠿</span>`+
@@ -907,7 +1101,7 @@ function timelineHtml(d){
       html+=`<div class="tl-city">${city?(city.flag+" "+escapeHtml(city.city)):escapeHtml(cen)}</div>`;
       lastCity=cen;
     }
-    html+=`<div class="tl-attr">${stateBadge(cen,a.id)}${escapeHtml(a.name)}</div>`;
+    html+=`<div class="tl-attr">${stateBadge(cen,a.id,a.visitMode)}${escapeHtml(a.name)}</div>`;
   });
   const acc=plan.days[d].accommodation||"";
   html+=`<div class="tl-item tl-end">🏨 住宿：${escapeHtml(acc)||"（住宿未填）"}</div>`;
@@ -916,8 +1110,8 @@ function timelineHtml(d){
 function renderDays(){
   const html=[];
   plan.days.forEach((day,d)=>{
-    const cities=day.cities.map(c=>cityByEn[c]).filter(Boolean);
-    const cityLabel = cities.length ? cities.map(c=>`${c.flag} ${escapeHtml(c.city)}`).join("、") : "（未选城市）";
+    const cities=day.cities.map(c=>cityByEn[c]||{city:c,flag:""}).filter(Boolean);
+    const cityLabel = cities.length ? cities.map(c=>`${c.flag||""} ${escapeHtml(c.city||c.cityEn||"")}`).join("、") : "（未选城市）";
     const attrs = day.attractions.length
       ? day.attractions.map((a,i)=>attrItem(a,d,i)).join("")
       : '<div class="muted">本日暂无景点。点【添加景点】从已选城市中加入，或点【自动填充】按默认规则补齐。</div>';
@@ -928,6 +1122,7 @@ function renderDays(){
         `<button class="btn ghost sm day-auto" onclick="autoFillDayBtn(${d})">自动填充</button></div>`+
         `<div class="day-start">🚩 起点：${escapeHtml(startOfDay(d))}${d>0?'（= 前一日住宿）':''}</div>`+
         `<div class="day-cities">🏙 本日城市：<b>${cityLabel}</b></div>`+
+        `<div class="day-notes"><label for="day-notes-${d}">当日备注</label><textarea id="day-notes-${d}" data-day="${d}" data-field="notes" placeholder="记录预约、节奏或现场提醒">${escapeHtml(day.notes||"")}</textarea></div>`+
         `<div class="attr-toolbar"><button class="btn ghost sm" onclick="openAddModal(${d})">➕ 添加景点</button>`+
           `<input type="text" class="custom-input" id="customInp-${d}" placeholder="自定义条目，如：买纪念品 / 机场接机" onkeydown="if(event.key==='Enter')addCustom(${d})">`+
           `<input type="text" class="custom-tag" id="customTag-${d}" placeholder="标签(可选)" onkeydown="if(event.key==='Enter')addCustom(${d})">`+
@@ -953,6 +1148,8 @@ function renderDays(){
   });
   $("days").innerHTML=html.join("");
   bindPlanEvents();
+  bindDayCarousel();
+  setCarouselDay(plan.activeDayIndex||0,"auto");
   renderSelBar();
 }
 function bindPlanEvents(){
@@ -966,7 +1163,7 @@ function bindPlanEvents(){
   document.querySelectorAll('.attr-del').forEach(b=>{
     b.addEventListener('click',()=>{ const d=+b.dataset.day, idx=+b.dataset.idx; removeItem(d,idx); });
   });
-  document.querySelectorAll('input[data-field]').forEach(inp=>{
+  document.querySelectorAll('input[data-field], textarea[data-field]').forEach(inp=>{
     inp.addEventListener('input',()=>{ plan.days[+inp.dataset.day][inp.dataset.field]=inp.value; savePlan(); updateStartChain(); renderFeasibility(); });
   });
   document.querySelectorAll('input[data-meal]').forEach(inp=>{
@@ -1004,7 +1201,7 @@ function addAttraction(d,cen,id){
   if(placedDay(cen,id)>=0) return false;
   const city=cityByEn[cen]; if(!city) return false;
   const a=city.attractions.find(x=>x.id===id); if(!a) return false;
-  plan.days[d].attractions.push({city:cen, id:a.id, name:a.name, tag:a.tag, duration:a.duration, hours:a.hours||""});
+  plan.days[d].attractions.push({city:cen, id:a.id, sourceSlug:a.id, name:a.name, titleSnapshot:a.name, tag:a.tag, duration:a.duration, hours:a.hours||"", visitMode:getState(cen,a.id)||"not_planned"});
   return true;
 }
 // 把住宿/三餐填写内容作为自定义条目加入当天景点列
@@ -1016,7 +1213,7 @@ function addLogiToAttr(d, type){
   const val=(type==="accommodation" ? (day.accommodation||"") : ((day.meals||{})[type]||"")).trim();
   if(!val){ showToast("请先填写"+meta.label+"地点"); return; }
   day.attractions.push({ custom:true, kind:type, id:"custom-"+type+"-"+Date.now()+"-"+Math.floor(Math.random()*1000),
-                         name:meta.icon+" "+meta.label+"："+val, city:"", tag:meta.label });
+                         name:meta.icon+" "+meta.label+"："+val, city:"", tag:meta.label, notes:meta.label, custom_payload:{value:val} });
   savePlan(); renderPlan();
   showToast("已将"+meta.label+"加入景点列 ✓");
 }
@@ -1027,13 +1224,13 @@ function addCustom(d){
   if(!val){ showToast("请先填写自定义条目内容"); return; }
   const tag=(tagInp?tagInp.value:"").trim()||"自定义";
   day.attractions.push({ custom:true, kind:"note", id:"custom-note-"+Date.now()+"-"+Math.floor(Math.random()*1000),
-                         name:val, city:"", tag:tag });
+                         name:val, city:"", tag:tag, notes:tag, custom_payload:{value:val} });
   savePlan(); renderPlan();
   showToast("已添加自定义条目 ✓");
 }
 function setCustomTag(d,idx,val){
   const a=plan.days[d] && plan.days[d].attractions[idx];
-  if(a && a.custom){ a.tag=val; savePlan(); }
+  if(a && a.custom){ a.tag=val; a.notes=val; savePlan(); }
 }
 /* =========================== 添加景点弹窗 =========================== */
 let addModalDay=-1;
@@ -1125,12 +1322,14 @@ function buildExportText(){
   L.push(COUNTRY+"行程规划"+(plan.tripName?(" · "+plan.tripName):""));
   L.push(`出发：${plan.departLocation||"?"}（${plan.departDate||"?"}）`);
   L.push(`返程：${plan.returnLocation||"?"}（${plan.returnDate||"?"}）`);
+  if(plan.notes) L.push(`备注：${plan.notes}`);
   L.push(`共 ${plan.days.length} 天 ${plan.days.length-1} 晚`);
   L.push("");
   plan.days.forEach((day,d)=>{
     L.push(`第${d+1}天（${fmtDate(addDays(plan.departDate,d))}）`);
     L.push(`  起点：${startOfDay(d)}`);
     L.push(`  城市：${day.cities.map(c=> cityByEn[c]?cityByEn[c].city:c).join("、")||"（未选）"}`);
+    if(day.notes) L.push(`  备注：${day.notes}`);
     let lastCity=null;
     day.attractions.forEach(a=>{
       if(a.custom){
@@ -1139,7 +1338,7 @@ function buildExportText(){
       }
       const cen=a.city, city=cityByEn[cen];
       if(cen!==lastCity){ L.push(`  · ${city?city.city:cen}：`); lastCity=cen; }
-      const s=getState(cen,a.id); const tag=s==="inside"?"[入内]":s==="outside"?"[外部]":"";
+      const s=normalizeVisitMode(a.visitMode||getState(cen,a.id)); const tag=s==="inside"?"[入内]":s==="outside"?"[外部]":"";
       L.push(`      ${tag}${a.name}`);
     });
     const m=day.meals||{};
@@ -1163,19 +1362,124 @@ function downloadJson(){
 }
 
 /* =========================== 存储 =========================== */
-function savePlan(){ try{ localStorage.setItem(PLAN_KEY, JSON.stringify(plan)); }catch(e){} }
-function loadPlan(){
+function planStorageKey(tripId=""){
+  const id=String(tripId||"").trim();
+  return id ? `${PLAN_KEY}:${id}` : PLAN_KEY;
+}
+function normalizeStoredPlan(value){
+  if(!value || typeof value!=="object" || !Array.isArray(value.days)) return null;
+  const departDate=String(value.departDate||"");
+  const days=value.days.map((day,index)=>normalizeDay({...day,dayIndex:index,date:day.date||(departDate?fmtDate(addDays(departDate,index)).slice(0,10):"")}));
+  return {
+    ...value,
+    schemaVersion:2,
+    departDate,
+    days,
+    notes:value.notes||"",
+    baseUnit:baseUnitByKey[value.baseUnit] ? value.baseUnit : (value.baseUnit||""),
+    baseUnitType:value.baseUnitType||baseUnitByKey[value.baseUnit]?.type||"",
+    baseUnitLabel:value.baseUnitLabel||baseUnitLabel(value.baseUnit),
+    activeDayIndex:Number.isInteger(value.activeDayIndex) ? value.activeDayIndex : 0,
+    loadedFromCloud:Boolean(value.loadedFromCloud)
+  };
+}
+function loadPlan(key=PLAN_KEY){
   try{
-    const r=localStorage.getItem(PLAN_KEY);
-  if(r){
-      const o=JSON.parse(r);
-      if(o && o.departDate && Array.isArray(o.days)){
-        o.days = o.days.map((day,index)=>normalizeDay({...day,dayIndex:index,date:day.date||fmtDate(addDays(o.departDate,index)).slice(0,10)}));
-        return o;
-      }
-    }
+    const raw=localStorage.getItem(key);
+    return raw ? normalizeStoredPlan(JSON.parse(raw)) : null;
+  }catch(e){ return null; }
+}
+function readGuestState(){
+  try{
+    const value=JSON.parse(localStorage.getItem(GUEST_TRIPS_KEY)||"null");
+    return value && typeof value==="object" ? value : null;
+  }catch(e){ return null; }
+}
+function syncGuestTripSummary(){
+  const tripId=String(plan.tripId||editTripId||"").trim();
+  if(!tripId) return;
+  const guest=readGuestState();
+  if(!guest || !Array.isArray(guest.trips)) return;
+  const index=guest.trips.findIndex(trip=>String(trip?.id||"")===tripId);
+  if(index<0) return;
+  const current=guest.trips[index]||{};
+  const payload=current.payload && typeof current.payload==="object" ? current.payload : {};
+  guest.trips[index]={
+    ...current,
+    name:plan.tripName||current.name||"未命名行程",
+    startDate:plan.departDate||current.startDate||"",
+    endDate:plan.returnDate||current.endDate||"",
+    payload:{...payload,note:plan.notes||payload.note||"",plannerKey:planStorageKey(tripId)}
+  };
+  if(!guest.activeTripId) guest.activeTripId=tripId;
+  try{ localStorage.setItem(GUEST_TRIPS_KEY,JSON.stringify(guest)); }catch(e){}
+}
+function savePlan(){
+  try{
+    const raw=JSON.stringify(plan);
+    localStorage.setItem(planStorageKey(plan.tripId||editTripId),raw);
+    // Keep the old key as the latest local draft for older entry points.
+    if(plan.tripId||editTripId) localStorage.setItem(PLAN_KEY,raw);
+    syncGuestTripSummary();
   }catch(e){}
-  return null;
+}
+
+function updatePlannerUrl({tripId="",newTrip=false}={}){
+  try{
+    const url=new URL(window.location.href);
+    url.searchParams.delete("editTripId"); url.searchParams.delete("tripId"); url.searchParams.delete("newTrip"); url.searchParams.delete("mode");
+    if(tripId) url.searchParams.set("tripId",String(tripId));
+    else if(newTrip) url.searchParams.set("newTrip","1");
+    window.history.replaceState(null,"",url.href);
+  }catch(_){ }
+}
+function parsePlannerNotes(value){
+  if(value && typeof value === "object") return value;
+  const raw=String(value||"");
+  try{
+    const parsed=JSON.parse(raw);
+    if(parsed && typeof parsed === "object") return parsed;
+  }catch(_){ }
+  return {text:raw,planner:{}};
+}
+function resolveCityKey(cityName, metadata={}){
+  const values=[metadata.source_city_name_en,metadata.city_name_en,metadata.cityEn,cityName,metadata.source_city_name_zh,metadata.city_name_zh].filter(Boolean).map(value=>String(value).trim().toLowerCase());
+  if(!values.length) return "";
+  const found=CITIES.find(city=>{
+    const names=[city.cityEn,city.city,city.name,city.nameEn].filter(Boolean).map(value=>String(value).trim().toLowerCase());
+    return values.some(value=>names.includes(value));
+  });
+  return found ? (found.cityEn||found.city) : "";
+}
+function coreItemToPlanItem(item){
+  const metadata=item.metadata && typeof item.metadata === "object" ? item.metadata : {};
+  const ref=Object.values(catalogByKey).find(value=>value.attractionId===item.attraction_id) || null;
+  const sourceSlug=metadata.source_slug || metadata.source_item_id || ref?.slug || "";
+  const city=ref?.cityKey || resolveCityKey(item.city_name_snapshot,metadata);
+  const catalog=cityByEn[city]?.attractions?.find(attraction=>attraction.id===sourceSlug) || null;
+  const itemType=item.item_type||metadata.semantic_kind||metadata.kind||"attraction";
+  const custom=itemType!=="attraction";
+  const tag=item.notes || metadata.tag || catalog?.tag || "";
+  return normalizeItem({
+    id:sourceSlug || item.attraction_id || item.id,
+    city,
+    name:item.title_snapshot || catalog?.name || metadata.source_name_zh || metadata.source_name_en || "未命名安排",
+    tag,
+    notes:item.notes||"",
+    duration:item.duration_minutes ? `${item.duration_minutes} 分钟` : (metadata.duration_label||catalog?.duration||""),
+    hours:metadata.hours||catalog?.hours||"",
+    custom,
+    kind:metadata.kind||metadata.item_kind||itemType,
+    custom_payload:metadata.payload||{},
+    visitMode:normalizeVisitMode(item.visit_mode),
+    attractionId:item.attraction_id||"",
+    sourceListItemId:item.source_list_item_id||"",
+    sourceSlug,
+    titleSnapshot:item.title_snapshot||"",
+    cityNameSnapshot:item.city_name_snapshot||metadata.source_city_name_zh||metadata.source_city_name_en||"",
+    metadata,
+    order:Number.isInteger(item.planned_order) ? item.planned_order-1 : 0
+  });
 }
 
 /* =========================== Supabase（登录 + 行程云同步） =========================== */
@@ -1244,6 +1548,13 @@ const TAF = (function(){
     });
     return {map, catalog};
   }
+  async function getActiveTripId(){
+    if(!session) return "";
+    initClient(); if(!sb) return "";
+    const r=await sb.from("profiles").select("active_trip_id").eq("id",session.user.id).maybeSingle();
+    if(r.error){ console.warn("当前行程读取失败:",r.error); return ""; }
+    return r.data?.active_trip_id||"";
+  }
   async function afterLogin(){
     loggedIn=true; renderStatus();
     const sel=await loadAll();
@@ -1255,6 +1566,7 @@ const TAF = (function(){
     maybeAutoFill();
     if(plan.enteredPlan) renderPlan();
     else if(plan.days && plan.days.length) renderCitySelect();
+    await hydrateEntryTrip(true);
     const cnt=Object.keys(confirmedByCity).length;
     showToast(cnt ? `已从云端同步 ${cnt} 座城市的精选景点 ✓` : "已登录，但未找到精选景点（将显示全部）");
   }
@@ -1268,11 +1580,12 @@ const TAF = (function(){
     renderStatus();
     const s=await getSession();
     if(s){ session=s; await afterLogin(); }
+    else await hydrateEntryTrip(false);
   }
   let tries=0;
   (function wait(){ if(SUPABASE_READY && window.supabase&&window.supabase.createClient){ initClient(); boot(); } else if(tries++<60){ setTimeout(wait,100); } else { console.warn("Supabase 未配置，仅游客/本机模式"); boot(); } })();
   return { login:doLogin, signup:doSignup, guest:doGuest, logout:doLogout, open:openModal,
-           getSb:()=>sb, getSession:()=>session };
+           getSb:()=>sb, getSession:()=>session, getActiveTripId };
 })();
 function openAuth(){ const m=document.getElementById("tafAuthModal"); if(m) m.classList.add("open"); }
 
@@ -1285,7 +1598,7 @@ function coreItemType(item){
   if(["breakfast","lunch","dinner"].includes(item.kind)) return "meal";
   return "custom";
 }
-function coreCatalogFor(item){ return catalogByKey[(item.city||"")+"::"+(item.id||"")]||null; }
+function coreCatalogFor(item){ return catalogByKey[(item.city||"")+"::"+(item.sourceSlug||item.id||"")]||null; }
 function coreTripPayload(){
   return {
     name:(plan.tripName||"未命名行程").trim(),
@@ -1294,7 +1607,7 @@ function coreTripPayload(){
     start_location:plan.departLocation||"",
     end_location:plan.returnLocation||"",
     status:"planned",
-    notes:plan.notes||null
+    notes:JSON.stringify({text:plan.notes||"",planner:{country:COUNTRY,countryEn:COUNTRY_EN,baseUnit:plan.baseUnit||"",baseUnitType:plan.baseUnitType||"",baseUnitLabel:plan.baseUnitLabel||""}})
   };
 }
 function coreDayPayload(day,d){
@@ -1310,20 +1623,29 @@ function coreDayPayload(day,d){
 }
 function coreItemPayload(item, index, dayId){
   const ref=coreCatalogFor(item), source=sourceAttraction(item);
-  const customPayload=item.custom ? {kind:item.kind||"note", payload:item.custom_payload||{}} : {
-    source_slug:item.id||"", hours:item.hours||source?.hours||"", map_query:source?.mapQuery||""
+  const sourceSlug=item.sourceSlug||item.id||"";
+  const metadata=item.metadata && typeof item.metadata === "object" ? {...item.metadata} : {};
+  const customPayload=item.custom ? {...metadata,kind:item.kind||metadata.kind||"note",payload:item.custom_payload||metadata.payload||{}} : {
+    ...metadata,
+    source_slug:sourceSlug,
+    source_name_en:item.sourceNameEn||metadata.source_name_en||source?.nameEn||"",
+    source_city_name_en:item.city||metadata.source_city_name_en||"",
+    tag:item.tag||metadata.tag||source?.tag||"",
+    duration_label:item.duration||metadata.duration_label||source?.duration||"",
+    hours:item.hours||source?.hours||metadata.hours||"",
+    map_query:source?.mapQuery||metadata.map_query||""
   };
   return {
     trip_day_id:dayId,
     item_type:coreItemType(item),
-    attraction_id:ref?.attractionId||null,
-    source_list_item_id:ref?.sourceListItemId||null,
-    title_snapshot:item.name||"未命名安排",
-    city_name_snapshot:item.custom?null:(ref?.cityName||cityByEn[item.city]?.city||item.city||null),
+    attraction_id:ref?.attractionId||item.attractionId||null,
+    source_list_item_id:ref?.sourceListItemId||item.sourceListItemId||null,
+    title_snapshot:item.titleSnapshot||item.name||"未命名安排",
+    city_name_snapshot:item.cityNameSnapshot||ref?.cityName||cityByEn[item.city]?.city||item.city||null,
     planned_order:index+1,
-    visit_mode:item.custom?"not_planned":(getState(item.city,item.id)||"not_planned"),
-    duration_minutes:item.custom?null:durationMinutes(item.duration),
-    notes:item.custom ? (item.tag||null) : null,
+    visit_mode:item.custom?"not_planned":normalizeVisitMode(item.visitMode||getState(item.city,sourceSlug)),
+    duration_minutes:item.custom?null:durationMinutes(item.duration||source?.duration),
+    notes:item.notes|| (item.custom ? (item.tag||null) : null),
     metadata:customPayload
   };
 }
@@ -1335,8 +1657,9 @@ async function saveTrip(){
   try{
     const row=coreTripPayload();
     let tripResult;
-    if(isUuid(plan.tripId)){
-      tripResult=await sb.from("trips").update(row).eq("id",plan.tripId).eq("user_id",session.user.id).select("id").single();
+    const targetTripId=editTripId||plan.tripId;
+    if(isUuid(targetTripId)){
+      tripResult=await sb.from("trips").update(row).eq("id",targetTripId).eq("user_id",session.user.id).select("id").single();
     }else{
       tripResult=await sb.from("trips").insert({...row,user_id:session.user.id}).select("id").single();
     }
@@ -1353,8 +1676,10 @@ async function saveTrip(){
         if(itemResult.error) throw itemResult.error;
       }
     }
-    await sb.from("profiles").update({active_trip_id:plan.tripId}).eq("id",session.user.id);
-    plan.snapshotRevision=0; savePlan(); showToast("已保存行程 ✓");
+    const profileResult=await sb.from("profiles").update({active_trip_id:plan.tripId}).eq("id",session.user.id);
+    if(profileResult.error) throw profileResult.error;
+    editTripId=plan.tripId; newTrip=false; plan.loadedFromCloud=true; plan.snapshotRevision=Number(plan.snapshotRevision||0)+1;
+    updatePlannerUrl({tripId:plan.tripId}); savePlan(); showToast("已保存行程 ✓");
   }catch(error){ showToast("保存失败："+(error.message||error)); }
 }
 async function openTrips(){
@@ -1377,31 +1702,148 @@ async function openTrips(){
   $("tripModal").classList.add("open");
 }
 function closeTrip(){ $("tripModal").classList.remove("open"); }
-async function loadTrip(tripId){
-  const sb=TAF.getSb(), session=TAF.getSession(); if(!sb||!session) return;
-  const head=await sb.from("trips").select("id,name,start_date,end_date,start_location,end_location,notes").eq("user_id",session.user.id).eq("id",tripId).maybeSingle();
-  if(head.error||!head.data){ showToast("打开失败："+(head.error&&head.error.message||"行程不存在")); return; }
-  const dr=await sb.from("trip_days").select("id,day_number,day_date,notes").eq("trip_id",tripId).order("day_number");
-  if(dr.error){ showToast("读取每日安排失败："+dr.error.message); return; }
-  const dayIds=(dr.data||[]).map(day=>day.id);
-  const ir=dayIds.length ? await sb.from("trip_items").select("id,trip_day_id,item_type,attraction_id,source_list_item_id,title_snapshot,city_name_snapshot,planned_order,visit_mode,duration_minutes,notes,metadata").in("trip_day_id",dayIds).order("planned_order") : {data:[],error:null};
-  if(ir.error){ showToast("读取景点安排失败："+ir.error.message); return; }
-  const itemsByDay={}; (ir.data||[]).forEach(item=>(itemsByDay[item.trip_day_id]||(itemsByDay[item.trip_day_id]=[])).push(item));
-  const h=head.data;
-  plan = Object.assign(emptyPlan(), {schemaVersion:2,tripId:h.id,tripName:h.name,departDate:h.start_date,returnDate:h.end_date,departLocation:h.start_location||"",returnLocation:h.end_location||"",snapshotRevision:0,enteredPlan:true,
-    days:(dr.data||[]).map((day,index)=>{
-      let parsedNotes={};
-      try{ parsedNotes=JSON.parse(day.notes||"{}"); }catch(_){ parsedNotes={text:day.notes||""}; }
-      const dayMeta=parsedNotes.planner||{};
-      return normalizeDay({id:day.id,dayIndex:day.day_number-1,date:day.day_date,notes:parsedNotes.text||"",cities:dayMeta.cities||[],accommodation:dayMeta.accommodation||"",transport:dayMeta.transport||"",meals:dayMeta.meals||{},attractions:(itemsByDay[day.id]||[]).map(item=>{
-        const metadata=item.metadata||{}, kind=metadata.kind||item.item_type;
-        const ref=Object.values(catalogByKey).find(value=>value.attractionId===item.attraction_id);
-        return {id:ref?.slug||metadata.source_slug||item.attraction_id||item.id,city:ref?.cityKey||"",name:item.title_snapshot,tag:item.notes||"",duration:item.duration_minutes?`${item.duration_minutes} 分钟`:"",hours:metadata.hours||"",custom:item.item_type!=="attraction",kind,custom_payload:metadata.payload||{}};
-      })});
-    })});
-  plan.enteredPlan=true; selSet.clear(); openPanels.clear();
-  savePlan(); fillSetupInputs(); closeTrip(); setStep(2); renderPlan();
-  showToast("已载入行程 ✓");
+async function loadTrip(tripId,{dayIndex=null}={}){
+  const sb=TAF.getSb(), session=TAF.getSession();
+  if(!sb||!session){ openAuth(); showToast("请先登录后打开云端行程"); return false; }
+  if(!SUPABASE_READY){ showToast("未配置云端 key"); return false; }
+  try{
+    const head=await sb.from("trips").select("id,name,start_date,end_date,start_location,end_location,notes").eq("user_id",session.user.id).eq("id",tripId).maybeSingle();
+    if(head.error||!head.data){ showToast("打开失败："+(head.error&&head.error.message||"行程不存在")); return false; }
+    const dr=await sb.from("trip_days").select("id,day_number,day_date,notes").eq("trip_id",tripId).order("day_number",{ascending:true});
+    if(dr.error){ showToast("读取每日安排失败："+dr.error.message); return false; }
+    const dayIds=(dr.data||[]).map(day=>day.id);
+    const ir=dayIds.length ? await sb.from("trip_items").select("id,trip_day_id,item_type,attraction_id,source_list_item_id,title_snapshot,city_name_snapshot,planned_order,visit_mode,duration_minutes,notes,metadata").in("trip_day_id",dayIds).order("planned_order",{ascending:true}) : {data:[],error:null};
+    if(ir.error){ showToast("读取景点安排失败："+ir.error.message); return false; }
+    const itemsByDay={};
+    (ir.data||[]).forEach(item=>(itemsByDay[item.trip_day_id]||(itemsByDay[item.trip_day_id]=[])).push(item));
+    Object.values(itemsByDay).forEach(items=>items.sort((a,b)=>(a.planned_order||0)-(b.planned_order||0)));
+    const h=head.data, tripNotes=parsePlannerNotes(h.notes), tripPlanner=tripNotes.planner||{};
+    const days=(dr.data||[]).slice().sort((a,b)=>(a.day_number||0)-(b.day_number||0)).map((day,index)=>{
+      const parsedNotes=parsePlannerNotes(day.notes), dayMeta=parsedNotes.planner||{};
+      return normalizeDay({
+        id:day.id,dayIndex:index,date:day.day_date,notes:parsedNotes.text||String(day.notes||""),
+        cities:Array.isArray(dayMeta.cities)?dayMeta.cities:[],
+        accommodation:dayMeta.accommodation||"",transport:dayMeta.transport||"",meals:dayMeta.meals||{},
+        attractions:(itemsByDay[day.id]||[]).map(coreItemToPlanItem)
+      });
+    });
+    plan=Object.assign(emptyPlan(),{
+      schemaVersion:2,tripId:h.id,tripName:h.name||"",notes:tripNotes.text||"",departDate:h.start_date||"",returnDate:h.end_date||"",
+      departLocation:h.start_location||"",returnLocation:h.end_location||"",snapshotRevision:0,enteredPlan:true,days,
+      baseUnit:baseUnitByKey[tripPlanner.baseUnit] ? tripPlanner.baseUnit : "",loadedFromCloud:true,
+      activeDayIndex:Number.isInteger(dayIndex) ? dayIndex : (Number.isInteger(REQUESTED_DAY) ? REQUESTED_DAY : 0)
+    });
+    plan.baseUnit=plan.baseUnit||inferBaseUnitFromPlan(); syncBaseUnitMeta();
+    editTripId=String(h.id); newTrip=false; entryHydrationStarted=true; selSet.clear(); openPanels.clear();
+    updatePlannerUrl({tripId:h.id});
+    savePlan(); fillSetupInputs(); closeTrip(); $("citySelectArea").style.display="none"; setStep(2); renderPlan(); focusPlanArea(plan.activeDayIndex);
+    showToast("已载入行程 ✓");
+    return true;
+  }catch(error){ showToast("打开失败："+(error.message||error)); return false; }
+}
+function planFromGuestTrip(trip,tripId){
+  const payload=trip?.payload && typeof trip.payload==="object" ? trip.payload : {};
+  const embedded=payload.plan || payload.planner?.plan || payload.plannerPlan;
+  const stored=normalizeStoredPlan(embedded);
+  if(stored){
+    stored.tripId=String(tripId);
+    stored.tripName=stored.tripName||trip.name||"";
+    stored.departDate=stored.departDate||trip.startDate||"";
+    stored.returnDate=stored.returnDate||trip.endDate||"";
+    stored.notes=stored.notes||payload.note||"";
+    return stored;
+  }
+  const seeded=emptyPlan();
+  seeded.tripId=String(tripId);
+  seeded.tripName=String(trip?.name||"");
+  seeded.departDate=String(trip?.startDate||"");
+  seeded.returnDate=String(trip?.endDate||"");
+  seeded.notes=String(payload.note||"");
+  const plannerMeta=payload.planner && typeof payload.planner==="object" ? payload.planner : {};
+  seeded.baseUnit=baseUnitByKey[plannerMeta.baseUnit] ? plannerMeta.baseUnit : seeded.baseUnit;
+  syncBaseUnitMetaFor(seeded);
+  const diff=seeded.departDate&&seeded.returnDate ? daysBetween(seeded.departDate,seeded.returnDate) : -1;
+  const count=Number.isFinite(diff)&&diff>=0 ? diff+1 : 0;
+  seeded.days=Array.from({length:count},(_,index)=>normalizeDay({dayIndex:index,date:fmtDate(addDays(seeded.departDate,index)).slice(0,10)}));
+  seeded.enteredPlan=false;
+  return seeded;
+}
+function syncBaseUnitMetaFor(target){
+  const unit=baseUnitByKey[target.baseUnit];
+  target.baseUnitType=unit?.type||"";
+  target.baseUnitLabel=unit?.label||"";
+}
+function matchesGuestTripPlan(candidate,trip,tripCount){
+  if(!candidate || !trip) return false;
+  const candidateId=String(candidate.tripId||"");
+  if(candidateId) return candidateId===String(trip.id||"");
+  const sameDates=String(candidate.departDate||"")===String(trip.startDate||"") && String(candidate.returnDate||"")===String(trip.endDate||"");
+  const sameName=String(candidate.tripName||"").trim()===String(trip.name||"").trim() && String(trip.name||"").trim()!=="";
+  return sameDates || sameName || tripCount===1;
+}
+function activateLocalPlan(nextPlan,tripId,message=""){
+  plan=normalizeStoredPlan(nextPlan)||emptyPlan();
+  plan.tripId=String(tripId||plan.tripId||"");
+  editTripId=plan.tripId;
+  newTrip=false;
+  plan.enteredPlan=Boolean(plan.enteredPlan);
+  entryHydrationStarted=true;
+  selSet.clear(); openPanels.clear();
+  updatePlannerUrl({tripId:plan.tripId});
+  savePlan();
+  fillSetupInputs();
+  if(plan.enteredPlan){
+    $("citySelectArea").style.display="none";
+    setStep(2); renderPlan(); focusPlanArea(plan.activeDayIndex||0);
+  }else{
+    setStep(1); renderCitySelect();
+  }
+  if(message) showToast(message);
+}
+function loadGuestTrip(tripId){
+  const guest=readGuestState();
+  const trips=guest?.trips||[];
+  const trip=trips.find(item=>String(item?.id||"")===String(tripId||""));
+  if(!trip) return false;
+  let local=loadPlan(planStorageKey(tripId));
+  if(local && !local.days.length) local=null;
+  let migrated=false;
+  if(!local){
+    const legacy=loadPlan();
+    if(matchesGuestTripPlan(legacy,trip,trips.length)){ local=legacy; migrated=true; }
+  }
+  if(!local) local=planFromGuestTrip(trip,tripId);
+  if(!local) return false;
+  local.tripId=String(tripId);
+  activateLocalPlan(local,tripId,migrated?"已恢复旧版本机行程 ✓":"已载入游客行程 ✓");
+  return true;
+}
+async function hydrateEntryTrip(force=false){
+  if(newTrip){ entryHydrationStarted=true; return false; }
+  if(entryHydrationStarted && !force) return false;
+  entryHydrationStarted=true;
+  const session=TAF.getSession();
+  let targetId=editTripId;
+  if(!targetId && session) targetId=await TAF.getActiveTripId();
+  if(!targetId && !session) targetId=readGuestState()?.activeTripId||"";
+  if(targetId){
+    const localMatches=String(plan.tripId||"")===String(targetId) && plan.loadedFromCloud && plan.days.length;
+    if(localMatches){
+      editTripId=String(targetId); newTrip=false; plan.enteredPlan=true; updatePlannerUrl({tripId:targetId}); fillSetupInputs(); $("citySelectArea").style.display="none"; setStep(2); renderPlan(); focusPlanArea(plan.activeDayIndex||0); return true;
+    }
+    if(session){
+      const loaded=await loadTrip(targetId,{dayIndex:Number.isInteger(REQUESTED_DAY)?REQUESTED_DAY:null});
+      if(loaded) return true;
+    }
+    return loadGuestTrip(targetId);
+  }
+  if(plan.tripId) editTripId=plan.tripId;
+  if(plan.departDate && plan.days.length){
+    fillSetupInputs();
+    if(plan.enteredPlan){ setStep(2); renderPlan(); focusPlanArea(plan.activeDayIndex||0); }
+    else { setStep(1); renderCitySelect(); }
+  }
+  return false;
 }
 async function delTrip(tripId){
   if(!confirm("确定删除该行程？")) return;
@@ -1428,6 +1870,10 @@ window.addEventListener("error", function(ev){
 document.title = "🧭 旅行行程规划 · " + COUNTRY;
 $("computeBtn").addEventListener("click", computeDays);
 $("resetBtn").addEventListener("click", resetAll);
+$("tripName").addEventListener("input",()=>{ plan.tripName=$("tripName").value.trim(); savePlan(); });
+$("tripNotes").addEventListener("input",()=>{ plan.notes=$("tripNotes").value; savePlan(); });
+$("departLoc").addEventListener("input",()=>{ plan.departLocation=$("departLoc").value.trim(); savePlan(); });
+$("returnLoc").addEventListener("input",()=>{ plan.returnLocation=$("returnLoc").value.trim(); savePlan(); });
 const enterBtn=document.getElementById("enterPlanBtn");
 if(enterBtn) enterBtn.addEventListener("click", enterPlan);
 ["giveUpModal","addModal"].forEach(id=>{
@@ -1436,10 +1882,12 @@ if(enterBtn) enterBtn.addEventListener("click", enterPlan);
 });
 if(plan.departDate && plan.days.length){
   fillSetupInputs();
-  if(plan.enteredPlan){ setStep(2); renderPlan(); }
+  if(plan.enteredPlan){ setStep(2); renderPlan(); focusPlanArea(); }
   else { setStep(1); renderCitySelect(); }
 }
 else { setStep(1); fillSetupInputs(); }
+if(REQUESTED_NEW_TRIP){ updatePlannerUrl({newTrip:true}); }
+if(REQUESTED_TRIP_ID && !REQUESTED_NEW_TRIP){ hydrateEntryTrip(false); }
 </script>
 </body>
 </html>

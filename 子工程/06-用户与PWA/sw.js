@@ -1,4 +1,4 @@
-const CACHE_NAME = "travel-app-shell-v6";
+const CACHE_NAME = "travel-app-shell-v8";
 const APP_SHELL = [
   "./",
   "./index.html",

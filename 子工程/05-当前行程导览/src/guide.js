@@ -1,4 +1,4 @@
-import { guideClient, GuideError } from "./repository.js?v=20260808";
+import { guideClient, GuideError } from "./repository.js?v=20260810";
 
 const state = {
   snapshot: null,
@@ -50,18 +50,37 @@ function setRoute(view, dayId = null, itemId = null) {
   render();
 }
 
+function hashItemId() {
+  const rawHash = decodeURIComponent(location.hash.replace(/^#/, "")).trim();
+  if (!rawHash) return null;
+  const hashParams = new URLSearchParams(rawHash);
+  const parameterId = hashParams.get("itemId") || hashParams.get("attractionId");
+  if (parameterId) return parameterId;
+  return rawHash.replace(/^(?:item|attraction)[-_:/=]/i, "");
+}
+
+function requestedItemId() {
+  return new URLSearchParams(location.search).get("itemId") || hashItemId();
+}
+
 function routeFromLocation() {
   const params = new URLSearchParams(location.search);
   const dayId = params.get("dayId");
-  const itemId = params.get("itemId");
+  const itemId = requestedItemId();
   const validDay = state.snapshot?.days.find((day) => day.id === dayId);
-  if (validDay) {
-    state.selectedDayId = validDay.id;
-    const validItem = validDay.items.find((item) => item.kind === "place" && item.id === itemId);
+  const itemDay = itemId ? state.snapshot?.days.find((day) => day.items.some((item) => item.kind === "place" && item.id === itemId)) : null;
+  const activeDay = validDay || itemDay;
+  if (activeDay) {
+    state.selectedDayId = activeDay.id;
+    const validItem = activeDay.items.find((item) => item.kind === "place" && item.id === itemId);
     state.view = validItem ? "detail" : "day";
     if (!validItem && itemId) {
       params.delete("itemId");
-      history.replaceState(null, "", `${location.pathname}?${params.toString()}`);
+      history.replaceState(null, "", `${location.pathname}${params.toString() ? `?${params}` : ""}`);
+    } else if (validItem && params.get("dayId") !== activeDay.id) {
+      params.set("dayId", activeDay.id);
+      params.set("itemId", validItem.id);
+      history.replaceState(null, "", `${location.pathname}?${params}`);
     }
   } else {
     state.view = "overview";
@@ -71,8 +90,9 @@ function routeFromLocation() {
 }
 
 function progressFor(day) {
-  const total = day.items.length;
-  const done = day.items.filter((item) => item.state.status === "completed" || item.state.status === "skipped").length;
+  const progressItems = day.items.filter((item) => !item.displayOnly);
+  const total = progressItems.length;
+  const done = progressItems.filter((item) => item.state.status === "completed" || item.state.status === "skipped").length;
   return { total, done, percent: total ? Math.round(done / total * 100) : 0 };
 }
 
@@ -118,7 +138,7 @@ function render() {
   app.innerHTML = `${tripHeader()}${viewTabs()}${state.view === "overview" ? overviewView() : state.view === "detail" ? detailView() : dayView()}`;
   bindDetailInteractions();
   if (state.view === "detail") requestAnimationFrame(() => {
-    const itemId = new URLSearchParams(location.search).get("itemId");
+    const itemId = requestedItemId();
     const card = itemId ? $(`[data-detail-card="${CSS.escape(itemId)}"]`) : null;
     if (card) scrollToDetailCard(card, { behavior: "instant", updateRoute: false });
     syncDetailSelection();
@@ -168,12 +188,16 @@ function dayView() {
   const progress = progressFor(day);
   const cities = day.cities.map((city) => city.name).join(" · ") || "城市待定";
   const places = day.items.filter((item) => item.kind === "place");
-  const selectedId = new URLSearchParams(location.search).get("itemId");
+  const selectedId = requestedItemId();
   const selectedIndex = Math.max(0, places.findIndex((item) => item.id === selectedId));
   const chips = places.map((item, index) => `<button type="button" class="attraction-chip ${index === selectedIndex ? "is-active" : ""}" data-detail-chip="${escapeHtml(item.id)}"><span>${index + 1}</span>${escapeHtml(item.details?.name || item.nameSnapshot)}</button>`).join("");
+  const lodging = day.items.filter((item) => item.kind === "logistics" && item.logistics?.kind === "lodging");
+  const otherItems = day.items.filter((item) => item.kind !== "place" && !(item.kind === "logistics" && item.logistics?.kind === "lodging"));
+  const trailingItems = [...otherItems, ...lodging];
+  const trailingTimeline = trailingItems.length ? `<div class="timeline supplemental-timeline">${trailingItems.map(itemCard).join("")}</div>` : "";
   const content = places.length
-    ? `<nav class="attraction-nav" aria-label="当天景点"><div class="attraction-nav-scroll">${chips}</div></nav><div class="guide-detail-deck" data-detail-deck>${places.map((item, index) => detailItemCard(item, day, index, index === selectedIndex)).join("")}</div>`
-    : `<div class="timeline">${day.items.length ? day.items.map(itemCard).join("") : '<div class="quiet-panel">这一天还没有安排。</div>'}</div>`;
+    ? `<nav class="attraction-nav" aria-label="当天景点"><div class="attraction-nav-scroll">${chips}</div></nav><div class="guide-detail-deck" data-detail-deck>${places.map((item, index) => detailItemCard(item, day, index, index === selectedIndex)).join("")}</div>${trailingTimeline}`
+    : `<div class="timeline">${trailingItems.length ? trailingItems.map(itemCard).join("") : '<div class="quiet-panel">这一天还没有安排。</div>'}</div>`;
   return `<section class="content-section day-view"><div class="day-toolbar"><div><p class="eyebrow">DAY ${String(day.sequence).padStart(2, "0")}</p><h2>${escapeHtml(dateLabel(day.date, true))}</h2><p class="lede">${escapeHtml(day.weekday || "")} · ${escapeHtml(cities)}</p></div><div class="day-progress"><strong>${progress.done}/${progress.total}</strong><span>已处理</span></div></div>${dayMeta(day)}${content}</section>`;
 }
 
@@ -184,10 +208,53 @@ function detailView() {
 function dayMeta(day) {
   const mealEntries = Object.entries(day.meals || {}).filter(([, value]) => value && value !== "—" && value !== "-");
   const blocks = [];
-  if (day.notes) blocks.push(`<div class="meta-block"><span class="meta-label">当天备注</span><p>${escapeHtml(day.notes)}</p></div>`);
-  if (day.accommodation?.label) blocks.push(`<div class="meta-block"><span class="meta-label">住宿</span><p>${escapeHtml(day.accommodation.label)}${day.accommodation.mapQuery ? ` <a href="${escapeHtml(guideClient.externalMapUrl(day.accommodation.mapQuery))}" target="_blank" rel="noreferrer">地图 ↗</a>` : ""}</p></div>`);
   if (mealEntries.length) blocks.push(`<div class="meta-block"><span class="meta-label">餐饮</span><p>${mealEntries.map(([key, value]) => `${escapeHtml(key)}：${escapeHtml(value)}`).join(" · ")}</p></div>`);
   return blocks.length ? `<aside class="day-meta">${blocks.join("")}</aside>` : "";
+}
+
+function coordinateQuery(source) {
+  const coordinates = source?.coordinates;
+  if (Array.isArray(coordinates) && coordinates.length >= 2) return `${coordinates[0]},${coordinates[1]}`;
+  if (coordinates && typeof coordinates === "object") {
+    const latitude = coordinates.latitude ?? coordinates.lat;
+    const longitude = coordinates.longitude ?? coordinates.lng;
+    if (latitude != null && longitude != null) return `${latitude},${longitude}`;
+  }
+  const latitude = source?.latitude ?? source?.lat;
+  const longitude = source?.longitude ?? source?.lng;
+  return latitude != null && longitude != null ? `${latitude},${longitude}` : null;
+}
+
+function safeMapUrl(value) {
+  if (!value) return null;
+  try {
+    const url = new URL(value, location.href);
+    return /^https?:$/.test(url.protocol) ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function mapTarget(item) {
+  const details = item.details || {};
+  const logistics = item.logistics || {};
+  const metadata = item.metadata || {};
+  const directUrl = safeMapUrl(details.mapUrl || logistics.mapUrl || metadata.map_url || metadata.mapUrl);
+  const query = details.mapQuery || logistics.mapQuery || metadata.map_query || metadata.mapQuery || coordinateQuery(details) || coordinateQuery(logistics) || coordinateQuery(metadata);
+  return directUrl ? { href: directUrl, query } : query ? { href: guideClient.externalMapUrl(query), query } : null;
+}
+
+function mapQuickLink(item, title) {
+  const target = mapTarget(item);
+  if (!target) return "";
+  return `<a class="map-quick-link" href="${escapeHtml(target.href)}" target="_blank" rel="noreferrer" aria-label="在地图中打开${escapeHtml(title)}" title="在地图中打开${escapeHtml(title)}"><span aria-hidden="true">⌖</span><span class="sr-only">地图</span></a>`;
+}
+
+function mapActions(item, target) {
+  if (!target) return "";
+  const preview = target.query ? `<button class="secondary-button small" type="button" data-map-preview="${escapeHtml(item.id)}" aria-expanded="false">预览地图</button>` : "";
+  const container = target.query ? `<div class="map-preview" data-map-container="${escapeHtml(item.id)}"></div>` : "";
+  return `<div class="map-actions"><a class="text-button small" href="${escapeHtml(target.href)}" target="_blank" rel="noreferrer">打开地图 ↗</a>${preview}</div>${container}`;
 }
 
 function itemCard(item) {
@@ -197,11 +264,12 @@ function itemCard(item) {
   const plan = isPlace ? `<span class="mode-chip mode-${item.visitMode}">计划 · ${modeLabels[item.visitMode]}</span>` : `<span class="mode-chip mode-neutral">${escapeHtml(item.logistics?.label || item.meal?.mealType || "自定义安排")}</span>`;
   const missing = isPlace && !item.details ? '<p class="missing-note">目录资料暂不可用，仍保留行程中的名称和地图入口。</p>' : "";
   const details = isPlace && item.details ? placeDetails(item.details) : logisticsDetails(item);
-  const mapQuery = item.details?.mapQuery || item.logistics?.mapQuery || item.metadata?.map_query || null;
-  const actions = mapQuery ? `<div class="map-actions"><a class="text-button small" href="${escapeHtml(guideClient.externalMapUrl(mapQuery))}" target="_blank" rel="noreferrer">打开地图 ↗</a><button class="secondary-button small" type="button" data-map-preview="${escapeHtml(item.id)}">预览地图</button></div><div class="map-preview" data-map-container="${escapeHtml(item.id)}"></div>` : "";
+  const target = mapTarget(item);
+  const actions = mapActions(item, target);
   const busy = state.busy.has(item.id);
   const titleHtml = isPlace ? `<button class="item-title-button" type="button" data-detail-item="${escapeHtml(item.id)}" aria-label="查看${escapeHtml(title)}详情">${escapeHtml(title)}</button>` : `<h3>${escapeHtml(title)}</h3>`;
-  return `<article class="item-card item-${item.kind} ${item.state.status !== "not_started" ? `status-${item.state.status}` : ""} ${busy ? "is-syncing" : ""}" data-item-card="${escapeHtml(item.id)}"><div class="item-rail"><span class="item-order">${item.plannedOrder}</span><span class="rail-line"></span></div><div class="item-body"><div class="item-heading"><div><div class="item-kicker">${location}${plan}</div>${titleHtml}${item.details?.nameEn ? `<p class="item-en">${escapeHtml(item.details.nameEn)}</p>` : ""}</div><span class="status-pill status-${item.state.status}">${statusLabels[item.state.status]}</span></div>${missing}${details}${actions}<div class="execution"><span class="execution-label">实际状态</span><div class="status-actions" role="group" aria-label="${escapeHtml(title)}实际状态">${statusButton(item, "not_started", "○")}${statusButton(item, "completed", "✓")}${statusButton(item, "skipped", "—")}</div></div></div></article>`;
+  const execution = item.displayOnly ? "" : `<div class="execution"><span class="execution-label">实际状态</span><div class="status-actions" role="group" aria-label="${escapeHtml(title)}实际状态">${statusButton(item, "not_started", "○")}${statusButton(item, "completed", "✓")}${statusButton(item, "skipped", "—")}</div></div>`;
+  return `<article class="item-card item-${item.kind} ${item.state.status !== "not_started" ? `status-${item.state.status}` : ""} ${busy ? "is-syncing" : ""}" data-item-card="${escapeHtml(item.id)}"><div class="item-rail"><span class="item-order">${item.displayOnly ? "⌂" : item.plannedOrder}</span><span class="rail-line"></span></div><div class="item-body"><div class="item-heading"><div><div class="item-kicker">${location}${plan}</div>${titleHtml}${item.details?.nameEn ? `<p class="item-en">${escapeHtml(item.details.nameEn)}</p>` : ""}</div><span class="status-pill status-${item.state.status}">${statusLabels[item.state.status]}</span></div>${missing}${details}${actions}${execution}</div></article>`;
 }
 
 function detailItemCard(item, day, index, selected) {
@@ -210,9 +278,10 @@ function detailItemCard(item, day, index, selected) {
   const plan = `<span class="mode-chip mode-${item.visitMode}">计划 · ${modeLabels[item.visitMode]}</span>`;
   const missing = !item.details ? '<p class="missing-note">目录资料暂不可用，仍保留行程中的名称和地图入口。</p>' : "";
   const details = item.details ? detailPlaceDetails(item.details) : missing;
-  const mapQuery = item.details?.mapQuery || item.metadata?.map_query || null;
-  const actions = mapQuery ? `<div class="map-actions"><a class="text-button small" href="${escapeHtml(guideClient.externalMapUrl(mapQuery))}" target="_blank" rel="noreferrer">打开地图 ↗</a><button class="secondary-button small" type="button" data-map-preview="${escapeHtml(item.id)}" aria-expanded="false">预览地图</button></div><div class="map-preview" data-map-container="${escapeHtml(item.id)}"></div>` : "";
-  return `<article class="guide-detail-card ${selected ? "is-selected" : ""}" data-detail-card="${escapeHtml(item.id)}"><div class="detail-card-heading"><div><div class="item-kicker"><span class="detail-order">${index + 1}</span>${location}${plan}</div><h3>${escapeHtml(title)}</h3>${item.details?.nameEn ? `<p class="item-en">${escapeHtml(item.details.nameEn)}</p>` : ""}</div><span class="status-pill status-${item.state.status}">${statusLabels[item.state.status]}</span></div>${noteEditor(item)}${details}${actions}<div class="execution"><span class="execution-label">实际状态</span><div class="status-actions" role="group" aria-label="${escapeHtml(title)}实际状态">${statusButton(item, "not_started", "○")}${statusButton(item, "completed", "✓")}${statusButton(item, "skipped", "—")}</div></div></article>`;
+  const target = mapTarget(item);
+  const actions = mapActions(item, target);
+  const titleRow = `<div class="detail-title-row"><h3>${escapeHtml(title)}</h3>${mapQuickLink(item, title)}</div>`;
+  return `<article class="guide-detail-card ${selected ? "is-selected" : ""}" id="item-${escapeHtml(item.id)}" data-detail-card="${escapeHtml(item.id)}"><div class="detail-card-heading"><div class="detail-card-heading-main"><div class="item-kicker"><span class="detail-order">${index + 1}</span>${location}${plan}</div>${titleRow}${item.details?.nameEn ? `<p class="item-en">${escapeHtml(item.details.nameEn)}</p>` : ""}</div><span class="status-pill status-${item.state.status}">${statusLabels[item.state.status]}</span></div>${noteEditor(item)}${details}${actions}<div class="execution"><span class="execution-label">实际状态</span><div class="status-actions" role="group" aria-label="${escapeHtml(title)}实际状态">${statusButton(item, "not_started", "○")}${statusButton(item, "completed", "✓")}${statusButton(item, "skipped", "—")}</div></div></article>`;
 }
 
 function detailPlaceDetails(details) {
@@ -259,11 +328,13 @@ function placeDetails(details) {
 }
 
 function detailTopOffset() {
-  return ($(".topbar")?.getBoundingClientRect().height || 0) + 12;
+  const topbar = $(".topbar");
+  return (topbar?.getBoundingClientRect().bottom || 0) + 16;
 }
 
 function updateDetailRoute(itemId) {
   const params = new URLSearchParams(location.search);
+  if (state.selectedDayId) params.set("dayId", state.selectedDayId);
   if (itemId) params.set("itemId", itemId);
   else params.delete("itemId");
   history.replaceState(null, "", `${location.pathname}${params.toString() ? `?${params}` : ""}`);
@@ -297,7 +368,7 @@ function syncDetailSelection() {
       if (nav) nav.scrollTo({ left: Math.max(0, chip.offsetLeft - nav.clientWidth / 2 + chip.offsetWidth / 2), behavior: "smooth" });
     }
   });
-  if (new URLSearchParams(location.search).get("itemId") !== itemId) updateDetailRoute(itemId);
+  if (requestedItemId() !== itemId) updateDetailRoute(itemId);
 }
 
 function bindDetailInteractions() {
@@ -323,11 +394,18 @@ function scrollToDetailCard(card, { behavior = "smooth", updateRoute = true } = 
   if (!card) return;
   const deck = card.closest("[data-detail-deck]");
   if (updateRoute) updateDetailRoute(card.dataset.detailCard);
+  card.scrollIntoView({
+    behavior: behavior === "instant" ? "auto" : behavior,
+    block: "start",
+    inline: "nearest"
+  });
   if (deck && window.matchMedia("(max-width: 760px)").matches) {
     deck.scrollTo({ left: card.offsetLeft, behavior: behavior === "instant" ? "auto" : behavior });
   }
-  const pageTop = card.getBoundingClientRect().top + window.scrollY - detailTopOffset();
-  window.scrollTo({ top: Math.max(0, pageTop), behavior: behavior === "instant" ? "auto" : behavior });
+  requestAnimationFrame(() => {
+    const correction = card.getBoundingClientRect().top - detailTopOffset();
+    if (Math.abs(correction) > 1) window.scrollBy({ top: correction, behavior: "auto" });
+  });
   requestAnimationFrame(syncDetailSelection);
 }
 
@@ -432,7 +510,7 @@ function loadMapPreview(itemId) {
   const item = findItem(itemId);
   const container = document.querySelector(`[data-map-container="${CSS.escape(itemId)}"]`);
   const card = document.querySelector(`[data-item-card="${CSS.escape(itemId)}"], [data-detail-card="${CSS.escape(itemId)}"]`);
-  const query = item?.details?.mapQuery || item?.logistics?.mapQuery || item?.metadata?.map_query;
+  const query = mapTarget(item)?.query;
   if (!container || !query || container.querySelector("iframe")) return;
   const url = new URL("https://www.google.com/maps");
   url.searchParams.set("q", query);
@@ -515,5 +593,6 @@ document.addEventListener("click", (event) => {
 });
 
 window.addEventListener("popstate", () => { if (state.snapshot) { routeFromLocation(); render(); } });
+window.addEventListener("hashchange", () => { if (state.snapshot) { routeFromLocation(); render(); } });
 window.addEventListener("beforeunload", () => clearInterval(state.pollTimer));
 load();

@@ -41,9 +41,10 @@
           </div>
           <span class="heading-index">01</span>
         </div>
-        <div class="feature-strip">
-          <div><span class="strip-label">最近编辑</span><strong id="recentTripLabel">还没有行程</strong></div>
-          <button class="text-button" type="button" data-go="planner">打开规划 <span aria-hidden="true">→</span></button>
+        <div class="latest-release-strip" aria-labelledby="latestReleaseTitle">
+          <div class="latest-release-heading"><span class="strip-label">最新上线</span><h2 id="latestReleaseTitle">景点与国家推荐</h2></div>
+          <div class="latest-release-content" id="latestReleaseContent"></div>
+          <p class="latest-release-status" id="latestReleaseStatus" role="status"></p>
         </div>
         <div class="recommendation-shell" id="recommendationShell">
           <div class="recommendation-toolbar">
@@ -85,7 +86,7 @@
         </div>
         <div class="list-tabs" role="tablist" aria-label="我的清单类型">
           <button class="list-tab is-active" type="button" role="tab" aria-selected="true" data-list-tab="trips">行程 <span id="tabTripCount">0</span></button>
-          <button class="list-tab" type="button" role="tab" aria-selected="false" data-list-tab="countries">国家收藏 <span id="tabCountryCount">0</span></button>
+          <button class="list-tab" type="button" role="tab" aria-selected="false" data-list-tab="countries">景点收藏 <span id="tabCountryCount">0</span></button>
         </div>
         <div id="listPanel"></div>
       </section>
@@ -110,6 +111,14 @@
       </section>
     </main>
 
+    <div class="planner-fab" id="plannerFab" hidden>
+      <div class="planner-fab-menu" id="plannerFabMenu" role="menu" hidden>
+        <button class="planner-fab-action" type="button" role="menuitem" data-new-trip>新建行程</button>
+        <button class="planner-fab-action" type="button" role="menuitem" data-go="planner">打开规划</button>
+      </div>
+      <button class="planner-fab-toggle" type="button" data-fab-toggle aria-label="规划行程" title="规划行程" aria-controls="plannerFabMenu" aria-expanded="false"><span aria-hidden="true">＋</span></button>
+    </div>
+
     <nav class="bottom-nav" aria-label="主导航">
       <a href="#discover" class="nav-item is-active" data-nav="discover"><span class="nav-icon" aria-hidden="true">⌖</span><span>发现</span></a>
       <a href="../04-旅程规划/planner.html" class="nav-item" data-nav="planner"><span class="nav-icon" aria-hidden="true">＋</span><span>规划</span></a>
@@ -128,6 +137,6 @@
 
   <script>window.__TRAVEL_APP_CONFIG__ = { SUPABASE_URL: "https://ogqirzemiceoosfebxgh.supabase.co", SUPABASE_PUBLISHABLE_KEY: "" };</script>
   <script src="./config/runtime-config.js?v=20260802"></script>
-  <script type="module" src="./src/app.js?v=20260807"></script>
+  <script type="module" src="./src/app.js?v=20260808"></script>
 </body>
 </html>

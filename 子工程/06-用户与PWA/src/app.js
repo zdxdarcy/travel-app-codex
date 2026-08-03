@@ -6,9 +6,12 @@ const state = {
   trips: [],
   countries: [],
   activeTripId: null,
+  collection: { status: "idle", tree: [], errors: [], requestId: 0 },
+  latest: { status: "idle", items: [], fromCache: false, cachedAt: 0, requestId: 0 },
   recommendations: { level: "continents", continent: null, country: null, city: null, items: [], detail: null, detailId: null, detailCache: new Map(), detailValues: new Map(), loading: false },
   recovery: false,
-  installPrompt: null
+  installPrompt: null,
+  plannerFabOpen: false
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -20,6 +23,10 @@ const EXTERNAL_VIEWS = {
   planner: "../04-旅程规划/planner.html",
   guide: "../05-当前行程导览/guide.html"
 };
+const LATEST_CACHE_KEY = "travel-app-latest-catalog-v1";
+const LATEST_CACHE_TTL = 10 * 60 * 1000;
+const LATEST_CACHE_STALE_LIMIT = 24 * 60 * 60 * 1000;
+let latestFeedRequest = null;
 
 const elements = {
   toast: $("#toast"),
@@ -41,12 +48,19 @@ function guestSnapshot() {
 }
 
 function persistGuest() {
-  client.saveGuestState({ guestId: guestSnapshot().guestId, trips: state.trips, countries: state.countries, activeTripId: state.activeTripId });
+  const current = guestSnapshot();
+  client.saveGuestState({
+    guestId: current.guestId,
+    trips: client.user ? (current.trips || []) : state.trips,
+    countries: client.user ? (current.countries || []) : state.countries,
+    activeTripId: client.user ? (current.activeTripId || null) : state.activeTripId
+  });
 }
 
 function setView(view) {
   const valid = ["discover", "planner", "guide", "trips", "account"];
   state.view = valid.includes(view) ? view : "discover";
+  renderPlannerFab();
   if (EXTERNAL_VIEWS[state.view]) {
     window.location.assign(EXTERNAL_VIEWS[state.view]);
     return;
@@ -57,7 +71,10 @@ function setView(view) {
   if (state.view === "account") renderAccount();
   if (state.view === "trips") renderLists();
   if (state.view === "guide") renderGuide();
-  if (state.view === "discover") renderRecommendations();
+  if (state.view === "discover") {
+    renderLatestRelease();
+    renderRecommendations();
+  }
 }
 
 function openModal(modal, html) {
@@ -150,15 +167,129 @@ function renderAccount() {
   $("#configNote").textContent = "当前未注入 Supabase publishable key。游客模式、App 壳和离线缓存可用，登录与云端同步需完成部署配置。";
 }
 
+function normalizeVisitMode(value) {
+  if (value === "inside" || value === "outside") return value;
+  return "none";
+}
+
+function normalizeSelection(row = {}) {
+  return {
+    ...row,
+    id: row.id || row.listItemId || "",
+    attractionId: row.attractionId || row.attraction_id || "",
+    countryId: row.countryId || row.country_id || "",
+    cityId: row.cityId || row.city_id || "",
+    visitMode: normalizeVisitMode(row.visitMode || (row.visit_mode === "not_planned" ? "none" : row.visit_mode)),
+    note: String(row.note || ""),
+    updatedAt: row.updatedAt || row.updated_at || "",
+    source: row.source || "guest-local",
+    attractionName: row.attractionName || row.name_zh || "",
+    attractionNameEn: row.attractionNameEn || row.name_en || "",
+    continentId: row.continentId || row.continent_id || "",
+    continentName: row.continentName || row.continent_name_zh || "",
+    continentNameEn: row.continentNameEn || row.continent_name_en || "",
+    countryName: row.countryName || row.country_name_zh || "",
+    countryNameEn: row.countryNameEn || row.country_name_en || "",
+    regionId: row.regionId || row.region_id || "",
+    regionName: row.regionName || row.region_name_zh || "",
+    regionNameEn: row.regionNameEn || row.region_name_en || "",
+    cityName: row.cityName || row.city_name_zh || "",
+    cityNameEn: row.cityNameEn || row.city_name_en || ""
+  };
+}
+
 function selectionMode(attractionId) {
-  const row = state.countries.find((item) => item.attractionId === attractionId || item.attraction_id === attractionId);
+  const row = state.countries.find((item) => item.attractionId === attractionId);
   if (!row) return "none";
-  return row.visitMode || (row.visit_mode === "not_planned" ? "none" : row.visit_mode) || "none";
+  return normalizeVisitMode(row.visitMode);
 }
 
 function recommendationStatus(message = "") {
   const target = $("#recommendationStatus");
   if (target) target.textContent = message;
+}
+
+function readLatestCache() {
+  try {
+    const payload = JSON.parse(localStorage.getItem(LATEST_CACHE_KEY) || "null");
+    if (!payload || !Array.isArray(payload.items) || !Number.isFinite(payload.cachedAt)) return null;
+    return { items: payload.items, cachedAt: payload.cachedAt };
+  } catch {
+    return null;
+  }
+}
+
+function writeLatestCache(items) {
+  try { localStorage.setItem(LATEST_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), items })); } catch { /* storage is optional */ }
+}
+
+function latestCountryItems(items) {
+  const countries = new Map();
+  for (const item of items || []) {
+    if (!item?.id || !item.country?.id || !item.city?.id) continue;
+    if (!countries.has(item.country.id)) countries.set(item.country.id, item);
+  }
+  return [...countries.values()].slice(0, 4);
+}
+
+function renderLatestRelease() {
+  const content = $("#latestReleaseContent");
+  const status = $("#latestReleaseStatus");
+  if (!content || !status) return;
+  const latest = state.latest;
+  if (latest.status === "loading" && !latest.items.length) {
+    content.innerHTML = `<span class="latest-release-empty">正在读取最新上线内容。</span>`;
+  } else if (!latest.items.length) {
+    const emptyText = latest.status === "error" && client.isConfigured()
+      ? "网络不可用，暂无可用的本机缓存。"
+      : client.isConfigured() ? "公开目录暂无可用的最新景点。" : "公开目录尚未配置，暂无本机缓存。";
+    content.innerHTML = `<span class="latest-release-empty">${emptyText}</span>`;
+  } else {
+    content.innerHTML = latest.items.map((item) => `<button class="latest-release-card" type="button" data-latest-open="${escapeHtml(item.id)}" aria-label="查看 ${escapeHtml(item.country.name_zh)} 的 ${escapeHtml(item.name_zh)}"><strong>${escapeHtml(item.country.name_zh)}</strong><span class="latest-release-attraction">${escapeHtml(item.name_zh)}</span><span class="latest-release-city">${escapeHtml(item.city.name_zh)} · ${escapeHtml(item.tag || "景点")}</span></button>`).join("");
+  }
+  if (latest.status === "loading") status.textContent = latest.items.length ? "正在更新 · 先显示本机缓存" : "";
+  else if (latest.status === "error" && latest.fromCache) status.textContent = "网络不可用 · 显示本机缓存";
+  else if (latest.fromCache) status.textContent = "本机缓存";
+  else if (latest.status === "error") status.textContent = "网络不可用";
+  else status.textContent = latest.status === "ready" ? "公开目录" : "";
+}
+
+async function hydrateLatestRecommendations(force = false) {
+  const cached = readLatestCache();
+  const cacheAge = cached ? Date.now() - cached.cachedAt : Infinity;
+  if (cached && ((!force && cacheAge <= LATEST_CACHE_TTL) || (!client.isConfigured() && cacheAge <= LATEST_CACHE_STALE_LIMIT))) {
+    state.latest = { status: "ready", items: latestCountryItems(cached.items), fromCache: true, cachedAt: cached.cachedAt, requestId: state.latest.requestId };
+    renderLatestRelease();
+    return;
+  }
+  if (latestFeedRequest) return latestFeedRequest;
+  if (!client.isConfigured()) {
+    state.latest = { status: "empty", items: [], fromCache: false, cachedAt: 0, requestId: state.latest.requestId };
+    renderLatestRelease();
+    return;
+  }
+  latestFeedRequest = (async () => {
+    const requestId = state.latest.requestId + 1;
+    const cachedItems = cached && cacheAge <= LATEST_CACHE_STALE_LIMIT ? latestCountryItems(cached.items) : [];
+    state.latest = { status: "loading", items: cachedItems, fromCache: Boolean(cachedItems.length), cachedAt: cached?.cachedAt || 0, requestId };
+    renderLatestRelease();
+    try {
+      const rows = await client.listLatestPublishedAttractions(12);
+      const items = latestCountryItems(rows);
+      if (state.latest.requestId !== requestId) return;
+      state.latest = { status: items.length ? "ready" : "empty", items, fromCache: false, cachedAt: Date.now(), requestId };
+      if (items.length) writeLatestCache(items);
+    } catch (error) {
+      if (state.latest.requestId !== requestId) return;
+      state.latest = cachedItems.length
+        ? { status: "error", items: cachedItems, fromCache: true, cachedAt: cached.cachedAt, requestId }
+        : { status: "error", items: [], fromCache: false, cachedAt: 0, requestId };
+      recommendationStatus(`目录暂不可用：${client.authError(error)}`);
+    } finally {
+      renderLatestRelease();
+    }
+  })();
+  try { await latestFeedRequest; } finally { latestFeedRequest = null; }
 }
 
 function recommendationBreadcrumb() {
@@ -209,6 +340,18 @@ function mapUrl(query) {
   return query ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}` : "";
 }
 
+function mapTarget(item) {
+  const query = String(item?.map_query || "").trim();
+  if (query) return { query, url: mapUrl(query) };
+  const latitudeText = String(item?.latitude ?? "").trim();
+  const longitudeText = String(item?.longitude ?? "").trim();
+  const latitude = Number(latitudeText);
+  const longitude = Number(longitudeText);
+  if (!latitudeText || !longitudeText || !Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return null;
+  const coordinateQuery = `${latitude},${longitude}`;
+  return { query: coordinateQuery, url: mapUrl(coordinateQuery) };
+}
+
 function detailGallery(item, detail) {
   if (detail?.media?.length) return `<div class="detail-gallery">${detail.media.map((photo) => `<img src="${escapeHtml(photo.url)}" alt="${escapeHtml(photo.alt_text || item.name_zh)}" loading="lazy">`).join("")}</div>`;
   return `<div class="detail-media-placeholder" aria-hidden="true"></div>`;
@@ -216,17 +359,18 @@ function detailGallery(item, detail) {
 
 function detailReviews(detail) {
   if (!detail?.reviews?.length) return `<div class="detail-reviews-slot" data-detail-reviews></div>`;
-  return `<div class="detail-reviews-slot" data-detail-reviews><div class="detail-reviews"><strong>评价摘要</strong>${detail.reviews.map((review) => `<p>${escapeHtml(review.review_text)}</p>`).join("")}</div></div>`;
+  const entries = detail.reviews.slice(0, 5);
+  const labels = { good: ["好评", "good"], neutral: ["中评", "neutral"], bad: ["差评", "bad"] };
+  return `<div class="detail-reviews-slot" data-detail-reviews><div class="review-summary"><span class="meta-label">评价摘要</span><div class="review-list">${entries.map((review) => { const [label, className] = labels[review?.review_type] || ["评价", "neutral"]; return `<div class="review-entry review-${className}"><span class="review-label">${label}</span><p>${escapeHtml(review?.review_text || "暂无评价内容")}</p></div>`; }).join("")}</div></div></div>`;
 }
 
 function recommendationDetailCard(item, index) {
   const rec = state.recommendations;
   const detail = rec.detailValues?.get(item.id) || null;
   const mode = selectionMode(item.id);
-  const query = item.map_query || `${item.name_zh} ${rec.city?.name_zh || ""}`;
+  const map = mapTarget(item);
   const facts = `<div class="detail-facts"><span>建议时长<strong>${escapeHtml(item.duration_label || "暂无")}</strong></span><span>评分<strong>${item.rating != null ? `${escapeHtml(item.rating)} / 5` : "暂无"}</strong></span><span>评价<strong>${item.review_count != null ? escapeHtml(item.review_count) : "暂无"}</strong></span></div><div class="detail-facts detail-copy"><span>开放时间<strong>${escapeHtml(catalogText(item.opening_hours))}</strong></span><span>票价<strong>${escapeHtml(catalogText(item.ticket_info))}</strong></span></div>`;
-  const map = mapUrl(query);
-  return `<article class="attraction-detail-card ${item.id === rec.detailId ? "is-selected" : ""}" data-rec-detail-card="${escapeHtml(item.id)}"><header class="detail-heading"><div><span class="eyebrow">${escapeHtml(item.tag || "景点详情")}</span><h2>${escapeHtml(item.name_zh)}</h2><p>${escapeHtml(item.name_en || "")}</p></div><button class="visit-mode mode-${mode}" type="button" data-rec-visit="${escapeHtml(item.id)}" aria-pressed="${mode !== "none"}">${{ inside: "入内参观", outside: "外部参观", none: "不参观" }[mode]}</button></header><div class="enhanced-detail-layout"><div class="enhanced-detail-main"><p class="detail-intro">${escapeHtml(item.description_zh || item.summary_zh || "暂无介绍")}</p><div data-detail-gallery>${detailGallery(item, detail)}</div>${facts}<p class="detail-note">${escapeHtml(item.visit_notes || "")}</p></div><aside class="enhanced-detail-aside">${map ? `<div class="detail-map-card"><iframe title="${escapeHtml(item.name_zh)} 地图" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://www.google.com/maps?q=${encodeURIComponent(query)}&output=embed"></iframe><a href="${map}" target="_blank" rel="noreferrer">在地图中查看 ↗</a></div>` : ""}${detailReviews(detail)}</aside></div></article>`;
+  return `<article class="attraction-detail-card ${item.id === rec.detailId ? "is-selected" : ""}" data-rec-detail-card="${escapeHtml(item.id)}"><header class="detail-heading"><div class="detail-heading-copy"><span class="eyebrow">${escapeHtml(item.tag || "景点详情")}</span><div class="detail-title-line"><h2>${escapeHtml(item.name_zh)}</h2>${map ? `<a class="detail-map-shortcut" href="${map.url}" target="_blank" rel="noreferrer" aria-label="在地图中打开 ${escapeHtml(item.name_zh)}" title="打开地图"><span aria-hidden="true">⌖</span></a>` : ""}</div><p>${escapeHtml(item.name_en || "")}</p></div><button class="visit-mode mode-${mode}" type="button" data-rec-visit="${escapeHtml(item.id)}" aria-pressed="${mode !== "none"}">${{ inside: "入内参观", outside: "外部参观", none: "未安排" }[mode]}</button></header><div class="enhanced-detail-layout"><div class="enhanced-detail-main"><p class="detail-intro">${escapeHtml(item.description_zh || item.summary_zh || "暂无介绍")}</p><div data-detail-gallery>${detailGallery(item, detail)}</div>${facts}<p class="detail-note">${escapeHtml(item.visit_notes || "")}</p></div><aside class="enhanced-detail-aside">${map ? `<div class="detail-map-card"><iframe title="${escapeHtml(item.name_zh)} 地图" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://www.google.com/maps?q=${encodeURIComponent(map.query)}&output=embed"></iframe><a href="${map.url}" target="_blank" rel="noreferrer">在地图中查看 ↗</a></div>` : ""}${detailReviews(detail)}</aside></div></article>`;
 }
 
 function renderRecommendationDetailDeck() {
@@ -274,7 +418,9 @@ function renderRecommendations() {
 
 function loadRecommendationDetailExtras() {
   const rec = state.recommendations;
-  rec.items.forEach((item) => {
+  const selectedIndex = rec.items.findIndex((item) => item.id === rec.detailId);
+  const items = rec.items.filter((item, index) => Math.abs(index - selectedIndex) <= 1);
+  items.forEach((item) => {
     recommendationDetailExtras(item.id).then(({ media, reviews }) => {
       if (rec.level !== "detail") return;
       rec.detailValues.set(item.id, { media, reviews });
@@ -287,7 +433,8 @@ function loadRecommendationDetailExtras() {
   });
 }
 
-async function hydrateRecommendations() {
+async function hydrateRecommendations({ refreshLatest = false } = {}) {
+  await hydrateLatestRecommendations(refreshLatest);
   if (!client.isConfigured()) {
     recommendationStatus("游客模式：目录需要部署配置后读取。");
     return;
@@ -309,6 +456,43 @@ async function hydrateRecommendations() {
     recommendationStatus(`目录暂不可用：${client.authError(error)}`);
   } finally {
     state.recommendations.loading = false;
+    renderRecommendations();
+  }
+}
+
+async function openLatestAttraction(id) {
+  const item = state.latest.items.find((entry) => entry.id === id);
+  if (!item?.city?.id || !item.country?.id) return;
+  if (!client.isConfigured()) {
+    showToast("目录尚未配置，暂时无法打开景点详情");
+    return;
+  }
+  const rec = state.recommendations;
+  rec.loading = true;
+  rec.level = "attractions";
+  rec.continent = null;
+  rec.country = item.country;
+  rec.city = item.city;
+  rec.items = [];
+  rec.detail = null;
+  rec.detailId = null;
+  renderRecommendations();
+  try {
+    const items = await client.listAttractions(item.city.id);
+    const attraction = items.find((entry) => entry.id === id);
+    if (!attraction) throw new Error("景点已下线或暂不可用");
+    rec.items = items;
+    rec.detail = attraction;
+    rec.detailId = id;
+    rec.level = "detail";
+    recommendationStatus("公开目录");
+  } catch (error) {
+    rec.items = [];
+    rec.detail = null;
+    rec.detailId = null;
+    recommendationStatus(`目录暂不可用：${client.authError(error)}`);
+  } finally {
+    rec.loading = false;
     renderRecommendations();
   }
 }
@@ -391,8 +575,9 @@ async function toggleRecommendationVisit(attractionId) {
   const next = { none: "inside", inside: "outside", outside: "none" }[current];
   const attraction = [...state.recommendations.items, state.recommendations.detail].find((item) => item?.id === attractionId);
   if (!attraction || !state.recommendations.country) return;
-  const row = { attractionId, countryId: state.recommendations.country.id, cityId: state.recommendations.city?.id || "", name_zh: attraction.name_zh, visitMode: next, updatedAt: new Date().toISOString(), source: client.user ? "cloud" : "guest-local" };
+  const row = normalizeSelection({ attractionId, countryId: state.recommendations.country.id, cityId: state.recommendations.city?.id || "", attractionName: attraction.name_zh, attractionNameEn: attraction.name_en, continentId: state.recommendations.continent?.id || "", continentName: state.recommendations.continent?.name_zh || "", continentNameEn: state.recommendations.continent?.name_en || "", countryName: state.recommendations.country?.name_zh || "", countryNameEn: state.recommendations.country?.name_en || "", cityName: state.recommendations.city?.name_zh || "", cityNameEn: state.recommendations.city?.name_en || "", visitMode: next, updatedAt: new Date().toISOString(), source: client.user ? "cloud" : "guest-local" });
   state.countries = [...state.countries.filter((item) => (item.attractionId || item.attraction_id) !== attractionId), row];
+  state.collection.status = "idle";
   persistGuest();
   renderRecommendations();
   if (state.recommendations.level === "detail") requestAnimationFrame(() => scrollRecommendationDetail(attractionId));
@@ -405,7 +590,7 @@ function activeTrip() {
 
 function tripCard(trip, compact = false) {
   const active = trip.id === state.activeTripId;
-  return `<article class="trip-card ${active ? "is-active" : ""}"><div class="trip-card-top"><span class="trip-status">${active ? "当前行程" : "已保存"}</span><button class="more-button" type="button" data-delete-trip="${escapeHtml(trip.id)}" aria-label="删除 ${escapeHtml(trip.name)}" title="删除行程">×</button></div><h3>${escapeHtml(trip.name)}</h3><p>${dateLabel(trip.startDate)} <span aria-hidden="true">→</span> ${dateLabel(trip.endDate)}</p><div class="trip-card-actions"><button class="secondary-button small" type="button" data-select-trip="${escapeHtml(trip.id)}">${active ? "正在使用" : "设为当前"}</button>${compact ? "" : `<button class="text-button small" type="button" data-go="planner">编辑 <span aria-hidden="true">→</span></button>`}</div></article>`;
+  return `<article class="trip-card ${active ? "is-active" : ""}"><div class="trip-card-top"><span class="trip-status">${active ? "当前行程" : "已保存"}</span><button class="more-button" type="button" data-delete-trip="${escapeHtml(trip.id)}" aria-label="删除 ${escapeHtml(trip.name)}" title="删除行程">×</button></div><h3>${escapeHtml(trip.name)}</h3><p>${dateLabel(trip.startDate)} <span aria-hidden="true">→</span> ${dateLabel(trip.endDate)}</p><div class="trip-card-actions"><button class="secondary-button small" type="button" data-select-trip="${escapeHtml(trip.id)}">${active ? "正在使用" : "设为当前"}</button>${compact ? "" : `<button class="text-button small" type="button" data-edit-trip="${escapeHtml(trip.id)}">编辑 <span aria-hidden="true">→</span></button>`}</div></article>`;
 }
 
 function renderTripList(target) {
@@ -417,7 +602,168 @@ function renderTripList(target) {
   target.innerHTML = `<div class="trip-list">${state.trips.map((trip) => tripCard(trip)).join("")}</div>`;
 }
 
-function renderLists() {
+function safeCatalogName(item, fallback = "未命名") {
+  const value = item?.name_zh || item?.name || item?.nameZh || item?.title;
+  return String(value || fallback);
+}
+
+function safeCatalogNameEn(item) {
+  return String(item?.name_en || item?.nameEn || "");
+}
+
+function emptyVisitCounts() {
+  return { total: 0, inside: 0, outside: 0, none: 0 };
+}
+
+function addVisitCount(counts, mode) {
+  const normalized = normalizeVisitMode(mode);
+  counts.total += 1;
+  counts[normalized] += 1;
+}
+
+function collectionCountText(counts) {
+  if (!counts?.total) return "0 个景点";
+  return `${counts.total} 个景点 · 入内 ${counts.inside} · 外部 ${counts.outside} · 未安排 ${counts.none}`;
+}
+
+function collectionNode(key, item = {}) {
+  return { key, id: item.id || "", name: safeCatalogName(item), nameEn: safeCatalogNameEn(item), counts: emptyVisitCounts(), children: [], attractions: [] };
+}
+
+function fallbackCollectionTree(records) {
+  const continents = new Map();
+  records.forEach((record) => {
+    const continentKey = record.continentId || "guest-catalog";
+    const countryKey = record.countryId || `guest-country-${record.attractionId}`;
+    const cityKey = record.cityId || `guest-city-${record.attractionId}`;
+    let continent = continents.get(continentKey);
+    if (!continent) {
+      continent = collectionNode(continentKey, { id: record.continentId, name_zh: record.continentName || "目录信息待配置", name_en: record.continentNameEn });
+      continents.set(continentKey, continent);
+    }
+    let country = continent.children.find((item) => item.key === countryKey);
+    if (!country) {
+      country = collectionNode(countryKey, { id: record.countryId, name_zh: record.countryName || "国家信息待配置", name_en: record.countryNameEn });
+      continent.children.push(country);
+    }
+    let city = country.children.find((item) => item.key === cityKey);
+    if (!city) {
+      city = collectionNode(cityKey, { id: record.cityId, name_zh: record.cityName || "城市信息待配置", name_en: record.cityNameEn });
+      country.children.push(city);
+    }
+    const attraction = { ...record, name_zh: record.attractionName || "景点信息待配置", name_en: record.attractionNameEn };
+    city.attractions.push(attraction);
+    [continent, country, city].forEach((node) => addVisitCount(node.counts, record.visitMode));
+  });
+  return [...continents.values()];
+}
+
+function appendCollectionAttraction(tree, record, catalog) {
+  const attraction = catalog.attractions.get(record.attractionId) || { id: record.attractionId, city_id: record.cityId, name_zh: record.attractionName || "景点信息待配置", name_en: record.attractionNameEn };
+  const city = catalog.cities.get(attraction.city_id || record.cityId) || { id: record.cityId, country_id: record.countryId, region_id: record.regionId, name_zh: record.cityName || "城市信息待配置", name_en: record.cityNameEn };
+  const country = catalog.countries.get(record.countryId) || { id: record.countryId, region_id: record.continentId, name_zh: record.countryName || "国家信息待配置", name_en: record.countryNameEn };
+  const continent = catalog.continents.get(country.region_id || record.continentId) || { id: record.continentId, name_zh: record.continentName || "目录信息待配置", name_en: record.continentNameEn };
+  const region = city.region_id ? (catalog.regions.get(city.region_id) || { id: city.region_id, name_zh: record.regionName || "地区信息待加载", name_en: record.regionNameEn }) : null;
+  let continentNode = tree.find((item) => item.key === (continent.id || "guest-catalog"));
+  if (!continentNode) { continentNode = collectionNode(continent.id || "guest-catalog", continent); tree.push(continentNode); }
+  let countryNode = continentNode.children.find((item) => item.key === country.id);
+  if (!countryNode) { countryNode = collectionNode(country.id, country); continentNode.children.push(countryNode); }
+  let parentNode = null;
+  if (region) {
+    parentNode = countryNode.children.find((item) => item.key === region.id);
+    if (!parentNode) { parentNode = collectionNode(region.id, region); countryNode.children.push(parentNode); }
+  }
+  const cityParent = parentNode || countryNode;
+  let cityNode = cityParent.children.find((item) => item.key === city.id);
+  if (!cityNode) {
+    cityNode = collectionNode(city.id, city);
+    cityParent.children.push(cityNode);
+  }
+  const enriched = { ...attraction, ...record, id: record.attractionId, city_id: city.id, country_id: country.id, region_id: region?.id || city.region_id || "", name_zh: safeCatalogName(attraction, record.attractionName || "景点信息待配置"), name_en: safeCatalogNameEn(attraction) || record.attractionNameEn };
+  cityNode.attractions.push(enriched);
+  [continentNode, countryNode, ...(region ? [parentNode] : []), cityNode].forEach((node) => addVisitCount(node.counts, record.visitMode));
+}
+
+function buildCollectionTree(records, catalog) {
+  const tree = [];
+  records.forEach((record) => appendCollectionAttraction(tree, record, catalog));
+  return tree;
+}
+
+function collectionTreeMarkup(tree) {
+  const nodeMarkup = (node, depth = 0) => {
+    const isCity = depth >= 2 && node.attractions.length > 0;
+    const children = node.children.map((child) => nodeMarkup(child, depth + 1)).join("");
+    const attractions = node.attractions.map((item) => collectionAttractionMarkup(item)).join("");
+    return `<details class="collection-node collection-node-${depth}" data-collection-node="${escapeHtml(node.key)}" ${depth < 2 ? "open" : ""}><summary><span class="collection-node-main"><strong>${escapeHtml(node.name)}</strong>${node.nameEn ? `<span>${escapeHtml(node.nameEn)}</span>` : ""}</span><span class="collection-node-count">${collectionCountText(node.counts)}</span></summary><div class="collection-node-children">${children}${isCity ? attractions : ""}${!children && !attractions ? `<p class="collection-subtle">暂无可显示的下级目录</p>` : ""}</div></details>`;
+  };
+  return tree.map((node) => nodeMarkup(node)).join("");
+}
+
+function collectionAttractionMarkup(item) {
+  const mode = normalizeVisitMode(item.visitMode);
+  const modeLabel = { inside: "入内参观", outside: "外部参观", none: "未安排" }[mode];
+  const map = mapTarget(item);
+  const note = String(item.note || "").trim();
+  return `<article class="collection-attraction" data-collection-attraction-id="${escapeHtml(item.id)}"><button class="collection-attraction-open" type="button" data-collection-open="${escapeHtml(item.id)}" data-city-id="${escapeHtml(item.city_id || item.cityId || "")}"><span class="collection-attraction-title">${escapeHtml(safeCatalogName(item, "景点信息待配置"))}</span>${safeCatalogNameEn(item) ? `<span class="collection-attraction-en">${escapeHtml(safeCatalogNameEn(item))}</span>` : ""}<span class="collection-attraction-meta">${escapeHtml(item.tag || "景点")}${item.duration_label ? ` · ${escapeHtml(item.duration_label)}` : ""}</span><span class="collection-attraction-id">ID ${escapeHtml(item.id || "未知")}</span></button><div class="collection-attraction-actions"><button class="visit-mode mode-${mode}" type="button" data-collection-visit="${escapeHtml(item.id)}" aria-label="${modeLabel}，点击切换参观方式" aria-pressed="${mode !== "none"}">${modeLabel}</button>${map ? `<a class="collection-map-link" href="${map.url}" target="_blank" rel="noreferrer" aria-label="在地图中打开 ${escapeHtml(safeCatalogName(item, "景点"))}" title="打开地图">⌖</a>` : ""}</div>${`<p class="collection-note">备注：${escapeHtml(note || "无")}</p>`}</article>`;
+}
+
+async function loadCollectionCatalog(records) {
+  const catalog = { continents: new Map(), countries: new Map(), regions: new Map(), cities: new Map(), attractions: new Map() };
+  const errors = [];
+  const continents = await client.listContinents();
+  (continents || []).forEach((item) => catalog.continents.set(item.id, item));
+  const countryResults = await Promise.allSettled((continents || []).map((continent) => client.listCountries(continent.id)));
+  countryResults.forEach((result, index) => {
+    if (result.status === "fulfilled") (result.value || []).forEach((item) => catalog.countries.set(item.id, item));
+    else errors.push(`国家目录：${safeCatalogName(continents[index], "未知大洲")}`);
+  });
+  const countryIds = [...new Set(records.map((record) => record.countryId).filter(Boolean))];
+  const countryResultsForSelection = await Promise.allSettled(countryIds.map(async (countryId) => {
+    const [regionsResult, citiesResult] = await Promise.allSettled([client.listRegions(countryId), client.listCities(countryId)]);
+    return { countryId, regionsResult, citiesResult };
+  }));
+  const cityRequests = [];
+  countryResultsForSelection.forEach((result) => {
+    if (result.status !== "fulfilled") { errors.push("国家目录加载失败"); return; }
+    const { countryId, regionsResult, citiesResult } = result.value;
+    if (regionsResult.status === "fulfilled") (regionsResult.value || []).forEach((item) => catalog.regions.set(item.id, item));
+    else errors.push(`地区目录：${countryId}`);
+    if (citiesResult.status === "fulfilled") {
+      (citiesResult.value || []).forEach((item) => { catalog.cities.set(item.id, item); cityRequests.push(item); });
+    } else errors.push(`城市目录：${countryId}`);
+  });
+  const attractionResults = await Promise.allSettled(cityRequests.map((city) => client.listAttractions(city.id)));
+  attractionResults.forEach((result, index) => {
+    if (result.status === "fulfilled") (result.value || []).forEach((item) => catalog.attractions.set(item.id, item));
+    else errors.push(`景点目录：${cityRequests[index]?.id || "未知城市"}`);
+  });
+  return { catalog, errors };
+}
+
+function renderCollectionList(target) {
+  if (!state.countries.length) {
+    target.innerHTML = `<div class="empty-panel list-empty"><span class="panel-icon" aria-hidden="true">☆</span><div><h2>还没有景点收藏</h2><p>在发现中选择入内参观或外部参观，景点会按目录层级保存。</p></div><button class="secondary-button" type="button" data-go="discover">去发现</button></div>`;
+    return;
+  }
+  const collection = state.collection;
+  if (collection.status === "idle") {
+    target.innerHTML = `<div class="collection-state"><strong>准备景点收藏</strong><span>正在读取大洲、国家、地区、城市和景点信息。</span></div>`;
+    return;
+  }
+  if (collection.status === "loading") {
+    target.innerHTML = `<div class="collection-state" data-collection-state="loading"><strong>正在加载景点收藏</strong><span>正在补全目录层级，请稍候。</span></div>`;
+    return;
+  }
+  if (collection.status === "empty") {
+    target.innerHTML = `<div class="collection-state"><strong>暂无可显示的景点收藏</strong><span>目录中暂时找不到这些景点，请刷新后重试。</span><button class="secondary-button small" type="button" data-collection-retry>重试</button></div>`;
+    return;
+  }
+  const error = collection.errors.length ? `<div class="collection-error" role="alert"><strong>部分目录暂不可用</strong><span>已显示可识别的收藏，缺失层级可稍后重试。</span><button class="secondary-button small" type="button" data-collection-retry>重试</button></div>` : "";
+  target.innerHTML = `${error}<div class="collection-tree" data-collection-tree>${collectionTreeMarkup(collection.tree)}</div>`;
+}
+
+function renderLists(options = {}) {
   $("#tabTripCount").textContent = state.trips.length;
   $("#tabCountryCount").textContent = state.countries.length;
   $$(".list-tab").forEach((tab) => {
@@ -427,8 +773,82 @@ function renderLists() {
   });
   const panel = $("#listPanel");
   if (state.listTab === "trips") renderTripList(panel);
-  else if (!state.countries.length) panel.innerHTML = `<div class="empty-panel list-empty"><span class="panel-icon" aria-hidden="true">☆</span><div><h2>还没有景点清单</h2><p>在景点推荐中选择入内或外部参观，清单会按国家保存。</p></div><button class="secondary-button" type="button" data-go="discover">去发现</button></div>`;
-  else panel.innerHTML = `<div class="selection-list">${state.countries.map((item) => `<article><strong>${escapeHtml(item.name_zh || item.attractionId || item.attraction_id)}</strong><span>${item.visitMode === "outside" ? "外部参观" : item.visitMode === "inside" ? "入内参观" : "未安排"}</span></article>`).join("")}</div>`;
+  else {
+    renderCollectionList(panel);
+    if (!options.skipLoad && state.collection.status === "idle") hydrateCollection();
+  }
+}
+
+async function hydrateCollection() {
+  const requestId = ++state.collection.requestId;
+  const records = state.countries.map(normalizeSelection).filter((record) => record.attractionId);
+  if (!records.length) {
+    state.collection = { status: "empty", tree: [], errors: [], requestId };
+    if (state.view === "trips" && state.listTab === "countries") renderLists({ skipLoad: true });
+    return;
+  }
+  state.collection = { status: "loading", tree: [], errors: [], requestId };
+  if (state.view === "trips" && state.listTab === "countries") renderLists({ skipLoad: true });
+  try {
+    if (!client.isConfigured()) {
+      state.collection = { status: "success", tree: fallbackCollectionTree(records), errors: [], requestId };
+    } else {
+      const { catalog, errors } = await loadCollectionCatalog(records);
+      const tree = buildCollectionTree(records, catalog);
+      state.collection = { status: tree.length ? "success" : "empty", tree, errors, requestId };
+    }
+  } catch (error) {
+    state.collection = { status: "error", tree: fallbackCollectionTree(records), errors: [client.authError(error)], requestId };
+  }
+  if (requestId !== state.collection.requestId) return;
+  if (state.view === "trips" && state.listTab === "countries") renderLists({ skipLoad: true });
+}
+
+function collectionAttractionById(id) {
+  const find = (nodes) => {
+    for (const node of nodes) {
+      const item = node.attractions.find((attraction) => attraction.id === id);
+      if (item) return { item, city: node };
+      const nested = find(node.children);
+      if (nested) return nested;
+    }
+    return null;
+  };
+  return find(state.collection.tree);
+}
+
+async function openCollectionAttraction(id) {
+  const result = collectionAttractionById(id);
+  const row = state.countries.find((item) => item.attractionId === id);
+  if (!result || !row) {
+    showToast("景点详情暂不可用，请刷新收藏目录");
+    return;
+  }
+  const city = result.city;
+  const attraction = result.item;
+  const country = state.collection.tree.flatMap((continent) => continent.children).find((item) => item.children.some((child) => child === city || child.children.some((nested) => nested === city)));
+  state.recommendations.city = { id: city.id, name_zh: city.name, name_en: city.nameEn };
+  state.recommendations.country = country ? { id: country.id, name_zh: country.name, name_en: country.nameEn } : { id: row.countryId, name_zh: row.countryName || "国家信息待配置", name_en: row.countryNameEn };
+  state.recommendations.items = [attraction];
+  state.recommendations.detail = attraction;
+  state.recommendations.detailId = id;
+  state.recommendations.level = "detail";
+  state.recommendations.loading = false;
+  setView("discover");
+  renderRecommendations();
+}
+
+async function toggleCollectionVisit(attractionId) {
+  const current = selectionMode(attractionId);
+  const next = { none: "inside", inside: "outside", outside: "none" }[current];
+  const previous = state.countries.find((item) => item.attractionId === attractionId);
+  if (!previous) return;
+  const row = normalizeSelection({ ...previous, visitMode: next, updatedAt: new Date().toISOString(), source: client.user ? "cloud" : "guest-local" });
+  state.countries = state.countries.map((item) => item.attractionId === attractionId ? row : item);
+  state.collection.status = "idle";
+  persistGuest();
+  renderLists();
+  if (client.user && client.isConfigured()) await client.saveSelection(row).catch(() => showToast("已保存在本机，云端稍后重试"));
 }
 
 function renderPlanner() {
@@ -452,7 +872,6 @@ function renderHeader() {
   const loggedIn = Boolean(client.user);
   $("#syncText").textContent = loggedIn ? "已同步" : "游客模式";
   $("#syncState").dataset.state = loggedIn ? "online" : "offline";
-  $("#recentTripLabel").textContent = activeTrip()?.name || "还没有行程";
   $("#activeTripSetting").textContent = activeTrip()?.name || "未选择";
 }
 
@@ -467,7 +886,7 @@ function renderAll() {
 
 async function hydrate() {
   const guest = guestSnapshot();
-  state.countries = guest.countries || [];
+  state.countries = (guest.countries || []).map(normalizeSelection);
   state.activeTripId = guest.activeTripId || null;
   if (client.user && client.isConfigured()) {
     try { state.trips = await client.listTrips(); }
@@ -476,9 +895,10 @@ async function hydrate() {
     catch (error) { state.activeTripId = null; showToast(`当前行程暂不可用：${client.authError(error)}`); }
   } else state.trips = guest.trips || [];
   if (client.user && client.isConfigured()) {
-    try { state.countries = (await client.listSelections()).map((row) => ({ ...row, attractionId: row.attraction_id, countryId: row.country_id, visitMode: row.visit_mode === "not_planned" ? "none" : row.visit_mode, updatedAt: row.updated_at, source: "cloud" })); }
+    try { state.countries = (await client.listSelections()).map((row) => normalizeSelection({ ...row, attractionId: row.attraction_id, countryId: row.country_id, visitMode: row.visit_mode, updatedAt: row.updated_at, source: "cloud" })); }
     catch (error) { showToast(`清单暂不可用：${client.authError(error)}`); }
   }
+  state.collection = { status: "idle", tree: [], errors: [], requestId: state.collection.requestId + 1 };
   await hydrateRecommendations();
   if (!client.user || !client.isConfigured()) {
     if (state.activeTripId && !state.trips.some((trip) => trip.id === state.activeTripId)) state.activeTripId = state.trips[0]?.id || null;
@@ -590,6 +1010,7 @@ function clearGuestData() {
   localStorage.removeItem(client.constants.GUEST_STORAGE_KEY);
   state.trips = client.user ? state.trips : [];
   state.countries = [];
+  state.collection = { status: "empty", tree: [], errors: [], requestId: state.collection.requestId + 1 };
   if (!client.user) state.activeTripId = null;
   renderAll();
   showToast("本地游客数据已清理");
@@ -600,21 +1021,59 @@ function updateOfflineBanner() { $("#offlineBanner").hidden = navigator.onLine; 
 async function syncSelectionState() {
   if (client.user && client.isConfigured()) {
     try {
-      state.countries = (await client.listSelections()).map((row) => ({ ...row, attractionId: row.attraction_id, countryId: row.country_id, visitMode: row.visit_mode === "not_planned" ? "none" : row.visit_mode, updatedAt: row.updated_at, source: "cloud" }));
+      state.countries = (await client.listSelections()).map((row) => normalizeSelection({ ...row, attractionId: row.attraction_id, countryId: row.country_id, visitMode: row.visit_mode, updatedAt: row.updated_at, source: "cloud" }));
     } catch { return; }
-  } else state.countries = guestSnapshot().countries || [];
+  } else state.countries = (guestSnapshot().countries || []).map(normalizeSelection);
+  state.collection = { status: "idle", tree: [], errors: [], requestId: state.collection.requestId + 1 };
   renderHeader();
   if (state.view === "trips") renderLists();
   if (state.view === "planner") renderPlanner();
 }
 
+function renderPlannerFab() {
+  const root = $("#plannerFab");
+  const menu = $("#plannerFabMenu");
+  const toggle = root?.querySelector("[data-fab-toggle]");
+  if (!root || !menu || !toggle) return;
+  const visible = state.view === "discover";
+  root.hidden = !visible;
+  menu.hidden = !visible || !state.plannerFabOpen;
+  toggle.setAttribute("aria-expanded", String(visible && state.plannerFabOpen));
+}
+
+function closePlannerFab() {
+  state.plannerFabOpen = false;
+  renderPlannerFab();
+}
+
+function togglePlannerFab() {
+  state.plannerFabOpen = !state.plannerFabOpen;
+  renderPlannerFab();
+}
+
 function bindEvents() {
   window.addEventListener("hashchange", () => setView(location.hash.replace(/^#/, "")));
   document.addEventListener("click", (event) => {
+    const fabToggle = event.target.closest("[data-fab-toggle]");
+    if (fabToggle) { togglePlannerFab(); return; }
+    const fabAction = event.target.closest(".planner-fab-action");
+    if (fabAction) {
+      closePlannerFab();
+      if (fabAction.dataset.newTrip !== undefined) openNewTrip();
+      else if (fabAction.dataset.go) setView(fabAction.dataset.go);
+      return;
+    }
+    if (state.plannerFabOpen && !event.target.closest("#plannerFab")) closePlannerFab();
     const close = event.target.closest("[data-close]");
     if (close) closeModal();
     const go = event.target.closest("[data-go]");
     if (go) setView(go.dataset.go);
+    const editTrip = event.target.closest("[data-edit-trip]");
+    if (editTrip) {
+      const tripId = editTrip.dataset.editTrip;
+      if (tripId) window.location.assign(`${EXTERNAL_VIEWS.planner}?tripId=${encodeURIComponent(tripId)}`);
+      return;
+    }
     const authOpen = event.target.closest("[data-auth-open]");
     if (authOpen) authForm(authOpen.dataset.authOpen);
     const authMode = event.target.closest("[data-auth-mode]");
@@ -625,6 +1084,8 @@ function bindEvents() {
     if (remove) handleDeleteTrip(remove.dataset.deleteTrip);
     const recOpen = event.target.closest("[data-rec-open]");
     if (recOpen) openRecommendation(recOpen.dataset.recOpen, recOpen.dataset.id);
+    const latestOpen = event.target.closest("[data-latest-open]");
+    if (latestOpen) openLatestAttraction(latestOpen.dataset.latestOpen);
     const detailStep = event.target.closest("[data-rec-detail-step]");
     if (detailStep && !detailStep.disabled) {
       const rec = state.recommendations;
@@ -636,17 +1097,27 @@ function bindEvents() {
     if (detailChip) scrollRecommendationDetail(detailChip.dataset.recDetailChip);
     const recVisit = event.target.closest("[data-rec-visit]");
     if (recVisit) toggleRecommendationVisit(recVisit.dataset.recVisit);
+    const collectionOpen = event.target.closest("[data-collection-open]");
+    if (collectionOpen) openCollectionAttraction(collectionOpen.dataset.collectionOpen);
+    const collectionVisit = event.target.closest("[data-collection-visit]");
+    if (collectionVisit) toggleCollectionVisit(collectionVisit.dataset.collectionVisit);
+    const collectionRetry = event.target.closest("[data-collection-retry]");
+    if (collectionRetry) hydrateCollection();
     if (event.target.closest("[data-rec-back]")) backRecommendation();
   });
   elements.backdrop.addEventListener("click", (event) => { if (event.target === elements.backdrop) closeModal(); });
-  document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !elements.backdrop.hidden) closeModal(); });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (state.plannerFabOpen) { closePlannerFab(); return; }
+    if (!elements.backdrop.hidden) closeModal();
+  });
   $("#newTripButton").addEventListener("click", openNewTrip);
   $("#exportButton").addEventListener("click", exportData);
   $("#clearGuestButton").addEventListener("click", clearGuestData);
   $("#installHelpButton").addEventListener("click", openInstallHelp);
   $("#installButton").addEventListener("click", openInstallHelp);
   $("#recommendationBack").addEventListener("click", backRecommendation);
-  $("#recommendationRefresh").addEventListener("click", hydrateRecommendations);
+  $("#recommendationRefresh").addEventListener("click", () => hydrateRecommendations({ refreshLatest: true }));
   $$(".list-tab").forEach((tab) => tab.addEventListener("click", () => { state.listTab = tab.dataset.listTab; renderLists(); }));
   window.addEventListener("online", updateOfflineBanner);
   window.addEventListener("offline", updateOfflineBanner);
@@ -657,6 +1128,8 @@ function bindEvents() {
 
 async function boot() {
   bindEvents();
+  // Apply the initial hash view before any catalog or collection request can delay the shell.
+  renderPlannerFab();
   updateOfflineBanner();
   client.onAuthStateChange(() => hydrate());
   state.recovery = await client.recoverSessionFromHash();

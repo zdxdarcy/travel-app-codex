@@ -3,7 +3,7 @@ import { supabaseClient } from "../../../子工程/06-用户与PWA/src/supabase-
 const TRIP_FIELDS = "id,user_id,name,start_date,end_date,start_location,end_location,status,notes,updated_at";
 const DAY_FIELDS = "id,trip_id,day_number,day_date,notes,updated_at";
 const ITEM_FIELDS = "id,trip_day_id,item_type,attraction_id,title_snapshot,city_name_snapshot,planned_order,visit_mode,visit_status,duration_minutes,notes,metadata,updated_at";
-const ATTRACTION_FIELDS = "id,city_id,slug,name_zh,name_en,tag,summary_zh,description_zh,duration_label,map_query,opening_hours,ticket_info,visit_notes,rating,review_count,rating_source,updated_at,is_active";
+const ATTRACTION_FIELDS = "id,city_id,slug,name_zh,name_en,tag,summary_zh,description_zh,duration_label,latitude,longitude,map_query,opening_hours,ticket_info,visit_notes,rating,review_count,rating_source,updated_at,is_active";
 
 const VISIT_MODES = new Set(["inside", "outside", "not_planned"]);
 const VISIT_STATUSES = new Set(["not_started", "completed", "skipped"]);
@@ -118,7 +118,9 @@ function detailsFor(attraction, media, reviews) {
     rating: attraction.rating == null ? null : Number(attraction.rating),
     reviewCount: attraction.review_count == null ? null : Number(attraction.review_count),
     ratingSource: attraction.rating_source || null,
-    mapQuery: attraction.map_query || attraction.name_zh || null,
+    latitude: attraction.latitude == null ? null : Number(attraction.latitude),
+    longitude: attraction.longitude == null ? null : Number(attraction.longitude),
+    mapQuery: attraction.map_query || null,
     updatedAt: attraction.updated_at || null,
     isActive: attraction.is_active !== false
   };
@@ -145,7 +147,8 @@ function metadataFor(item) {
 
 function itemKind(item) {
   if (item.item_type === "attraction") return "place";
-  if (["lodging", "transport"].includes(item.item_type)) return "logistics";
+  const metadataKind = metadataFor(item).kind;
+  if (["lodging", "transport"].includes(item.item_type) || ["lodging", "accommodation", "parking", "pickup", "dropoff"].includes(metadataKind)) return "logistics";
   if (item.item_type === "meal") return "meal";
   return "custom";
 }
@@ -156,19 +159,78 @@ function itemLabel(item, details) {
 
 function mapLogistics(item) {
   const metadata = metadataFor(item);
-  const kind = metadata.kind || item.item_type;
+  const rawKind = metadata.kind || item.item_type;
+  const kind = rawKind === "accommodation" ? "lodging" : rawKind;
   const labels = { lodging: "住宿", transport: "交通", pickup: "取车", parking: "停车", dropoff: "还车", start: "起点" };
+  const parkingNote = metadata.parking || metadata.parking_note || metadata.parkingDescription || null;
+  const note = [item.notes, metadata.note, parkingNote].filter((value, index, values) => value && values.indexOf(value) === index).join(" · ") || null;
   return {
     label: labels[kind] || (item.item_type === "lodging" ? "住宿" : "行程安排"),
     kind,
     mapQuery: metadata.map_query || item.title_snapshot || null,
-    note: item.notes || metadata.note || null
+    mapUrl: metadata.map_url || metadata.mapUrl || null,
+    latitude: metadata.latitude ?? metadata.lat ?? null,
+    longitude: metadata.longitude ?? metadata.lng ?? null,
+    note
   };
 }
 
 function mapMeals(item) {
   const metadata = metadataFor(item);
   return { mealType: metadata.meal_type || metadata.kind || "餐饮", note: item.notes || metadata.note || item.title_snapshot || null };
+}
+
+function normalizeAccommodation(value) {
+  if (!value) return null;
+  if (typeof value === "string") {
+    const label = value.trim();
+    return label ? { label, kind: "lodging", mapQuery: label, mapUrl: null, latitude: null, longitude: null, note: null } : null;
+  }
+  if (typeof value !== "object") return null;
+  const label = value.label || value.name || value.title || value.address || value.text || null;
+  if (!label) return null;
+  const parkingNote = value.parking || value.parking_note || value.parkingDescription || null;
+  const note = [value.note, value.notes, value.description, parkingNote].filter(Boolean).join(" · ") || null;
+  return {
+    label: String(label),
+    kind: "lodging",
+    mapQuery: value.mapQuery || value.map_query || null,
+    mapUrl: value.mapUrl || value.map_url || null,
+    latitude: value.latitude ?? value.lat ?? null,
+    longitude: value.longitude ?? value.lng ?? null,
+    note
+  };
+}
+
+function syntheticAccommodation(dayId, accommodation) {
+  return {
+    id: `${dayId}:accommodation`,
+    plannedOrder: Number.MAX_SAFE_INTEGER,
+    kind: "logistics",
+    placeId: null,
+    nameSnapshot: accommodation.label,
+    cityName: null,
+    visitMode: "none",
+    details: null,
+    logistics: accommodation,
+    meal: null,
+    metadata: {},
+    displayOnly: true,
+    state: { status: "not_started", actualNote: null, updatedAt: null }
+  };
+}
+
+function mergeAccommodation(itemAccommodation, metadataAccommodation) {
+  if (!itemAccommodation) return metadataAccommodation;
+  if (!metadataAccommodation) return itemAccommodation;
+  return {
+    ...itemAccommodation,
+    mapQuery: itemAccommodation.mapQuery || metadataAccommodation.mapQuery,
+    mapUrl: itemAccommodation.mapUrl || metadataAccommodation.mapUrl,
+    latitude: itemAccommodation.latitude ?? metadataAccommodation.latitude,
+    longitude: itemAccommodation.longitude ?? metadataAccommodation.longitude,
+    note: [itemAccommodation.note, metadataAccommodation.note].filter((value, index, values) => value && values.indexOf(value) === index).join(" · ") || null
+  };
 }
 
 async function loadAttractionBundle(ids) {
@@ -218,6 +280,12 @@ function buildSnapshot(trip, days, items, bundle) {
       };
     });
     const logistics = guideItems.filter((item) => item.kind === "logistics");
+    const lodgingItem = logistics.find((item) => item.logistics?.kind === "lodging");
+    const metadataAccommodation = normalizeAccommodation(planner.accommodation || dayNotes.accommodation || dayNotes.lodging);
+    if (metadataAccommodation && planner.parking) metadataAccommodation.note = [metadataAccommodation.note, planner.parking].filter(Boolean).join(" · ");
+    const accommodation = mergeAccommodation(lodgingItem?.logistics, metadataAccommodation);
+    if (lodgingItem && accommodation) lodgingItem.logistics = accommodation;
+    if (accommodation && !lodgingItem) guideItems.push(syntheticAccommodation(day.id, accommodation));
     return {
       id: day.id,
       sequence: day.day_number,
@@ -225,7 +293,7 @@ function buildSnapshot(trip, days, items, bundle) {
       weekday: weekdayLabel(day.day_date),
       cities: normalizeCities(planner.cities || dayNotes.cities),
       start: planner.start || null,
-      accommodation: planner.accommodation ? { label: planner.accommodation, kind: "accommodation", mapQuery: planner.accommodation, note: null } : logistics.find((item) => item.logistics?.kind === "lodging")?.logistics || null,
+      accommodation,
       meals: planner.meals || {},
       notes: dayNotes.text || dayNotes.note || null,
       items: guideItems

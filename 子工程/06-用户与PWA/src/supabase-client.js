@@ -182,7 +182,28 @@ async function listCities(countryId, regionId = null) {
 }
 
 async function listAttractions(cityId) {
-  return publicTable(`attractions?select=id,city_id,slug,name_zh,name_en,tag,summary_zh,description_zh,duration_label,map_query,opening_hours,ticket_info,visit_notes,rating,review_count,rating_source&city_id=eq.${encodeURIComponent(cityId)}&is_active=eq.true&order=name_zh`);
+  return publicTable(`attractions?select=id,city_id,slug,name_zh,name_en,tag,summary_zh,description_zh,duration_label,latitude,longitude,map_query,opening_hours,ticket_info,visit_notes,rating,review_count,rating_source&city_id=eq.${encodeURIComponent(cityId)}&is_active=eq.true&order=name_zh`);
+}
+
+async function queryLatestPublishedAttractions(limit, sortField) {
+  const safeLimit = Math.max(1, Math.min(24, Number(limit) || 12));
+  const query = `attractions?select=id,city_id,slug,name_zh,name_en,tag,summary_zh,duration_label,rating,review_count,${sortField},cities!inner(id,country_id,region_id,name_zh,name_en,slug,is_active,countries!inner(id,region_id,name_zh,name_en,slug,iso_code,is_active))&is_active=eq.true&cities.is_active=eq.true&cities.countries.is_active=eq.true&order=${sortField}.desc,id.desc&limit=${safeLimit}`;
+  const rows = await publicTable(query);
+  return (Array.isArray(rows) ? rows : []).map((row) => {
+    const city = row.cities && !Array.isArray(row.cities) ? row.cities : row.cities?.[0];
+    const country = city?.countries && !Array.isArray(city.countries) ? city.countries : city?.countries?.[0];
+    return { ...row, city: city || null, country: country || null };
+  }).filter((row) => row.city?.id && row.country?.id && row.city.is_active !== false && row.country.is_active !== false);
+}
+
+async function listLatestPublishedAttractions(limit = 12) {
+  try {
+    return await queryLatestPublishedAttractions(limit, "created_at");
+  } catch (error) {
+    const message = String(error?.message || error);
+    if (!/created_at|column.*does not exist|PGRST204|schema/i.test(message)) throw error;
+    return queryLatestPublishedAttractions(limit, "updated_at");
+  }
 }
 
 async function listAttractionMedia(attractionId) {
@@ -302,6 +323,7 @@ export const supabaseClient = {
   listRegions,
   listCities,
   listAttractions,
+  listLatestPublishedAttractions,
   listAttractionMedia,
   listAttractionReviews,
   listSelections,
