@@ -102,7 +102,7 @@ function authForm(mode = "login", message = "") {
   const recovery = mode === "update";
   const reset = mode === "reset";
   const signup = mode === "signup";
-  const title = recovery ? "设置新密码" : reset ? "找回密码" : signup ? "创建账号" : "登录旅程";
+  const title = recovery ? "设置新密码" : reset ? "找回密码" : signup ? "创建账号" : "登录旅序";
   const subtitle = recovery ? "设置一个新的密码，完成账号恢复。" : reset ? "输入注册邮箱，我们会发送恢复链接。" : signup ? "保存行程到云端，在不同设备继续。" : "登录后，你的清单和行程会自动同步。";
   const fields = recovery
     ? `<label class="field-label" for="authPassword">新密码</label><input id="authPassword" name="password" type="password" minlength="6" autocomplete="new-password" required placeholder="至少 6 位">`
@@ -1111,7 +1111,7 @@ async function handleMigration() {
 
 function openInstallHelp() {
   const canPrompt = Boolean(state.installPrompt);
-  openModal(elements.installModal, `<button class="modal-close" type="button" data-close aria-label="关闭">×</button><p class="eyebrow">INSTALL</p><h2 id="installTitle">把旅程放到主屏幕</h2><p class="modal-subtitle">${canPrompt ? "安装后可以像 App 一样从桌面打开。" : "Safari iPhone：点击底部分享按钮，再选择“添加到主屏幕”。"}</p><div class="install-steps">${canPrompt ? `<div><span>01</span><strong>点击下方安装</strong><small>浏览器会打开系统安装确认。</small></div><button class="primary-button wide" type="button" id="confirmInstall">安装到主屏幕</button>` : `<div><span>01</span><strong>点击 Safari 分享</strong><small>在浏览器底部工具栏找到分享按钮。</small></div><div><span>02</span><strong>选择“添加到主屏幕”</strong><small>确认名称后点击添加。</small></div>`}</div>`);
+  openModal(elements.installModal, `<button class="modal-close" type="button" data-close aria-label="关闭">×</button><p class="eyebrow">INSTALL</p><h2 id="installTitle">把旅序放到主屏幕</h2><p class="modal-subtitle">${canPrompt ? "安装后可以像 App 一样从桌面打开。" : "Safari iPhone：点击底部分享按钮，再选择“添加到主屏幕”。"}</p><div class="install-steps">${canPrompt ? `<div><span>01</span><strong>点击下方安装</strong><small>浏览器会打开系统安装确认。</small></div><button class="primary-button wide" type="button" id="confirmInstall">安装到主屏幕</button>` : `<div><span>01</span><strong>点击 Safari 分享</strong><small>在浏览器底部工具栏找到分享按钮。</small></div><div><span>02</span><strong>选择“添加到主屏幕”</strong><small>确认名称后点击添加。</small></div>`}</div>`);
   $("#confirmInstall")?.addEventListener("click", async () => {
     const prompt = state.installPrompt;
     if (!prompt) return;

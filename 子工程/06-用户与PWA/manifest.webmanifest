@@ -1,7 +1,7 @@
 {
-  "name": "旅程 · 我的旅行",
-  "short_name": "旅程",
-  "description": "旅行规划、导览与个人清单",
+  "name": "旅序 · 我的旅行",
+  "short_name": "旅序",
+  "description": "旅序：旅行规划、导览与个人清单",
   "lang": "zh-CN",
   "start_url": "./",
   "scope": "../",

@@ -3,8 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>旅行行程规划</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧭</text></svg>">
+<title>旅序 · 行程规划</title>
+<link rel="icon" href="../06-用户与PWA/assets/icon-192.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../06-用户与PWA/assets/apple-touch-icon.png">
 <style>
   :root{
     --bg:#f6f7f9; --card:#ffffff; --ink:#1f2733; --muted:#6b7686;
@@ -247,7 +248,7 @@
   .topbar{height:64px;padding:0 max(20px,calc((100vw - 1120px)/2));display:flex;align-items:center;background:rgba(247,248,250,.96);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:100;backdrop-filter:blur(14px)}
   .topbar-inner{width:100%;max-width:1120px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:16px;min-width:0}
   .brand{display:inline-flex;align-items:center;gap:9px;color:var(--ink);font-size:16px;font-weight:800;letter-spacing:.02em;text-decoration:none;min-width:0}
-  .brand-mark{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:9px;background:var(--teal);color:#fff;font-size:18px;line-height:1;transform:rotate(-8deg)}
+  .brand-mark{display:block;flex:0 0 30px;width:30px;height:30px;border-radius:9px;object-fit:contain}
   .topbar-actions{display:flex;align-items:center;gap:10px;min-width:0}
   .topbar-context{color:var(--muted);font-size:10px;font-weight:800;letter-spacing:1.2px;white-space:nowrap}
   .topbar-context b{color:var(--teal);font-size:13px}
@@ -413,9 +414,9 @@
 
 <header class="topbar">
   <div class="topbar-inner">
-    <a class="brand" href="../06-用户与PWA/index.html" aria-label="返回旅程首页">
-      <span class="brand-mark" aria-hidden="true">↗</span>
-      <span>旅程</span>
+    <a class="brand" href="../06-用户与PWA/index.html" aria-label="返回旅序首页">
+      <img class="brand-mark" src="../06-用户与PWA/assets/icon-192.svg" alt="" aria-hidden="true">
+      <span>旅序</span>
     </a>
     <div class="topbar-actions">
       <a class="topbar-account" id="plannerAccountButton" href="../06-用户与PWA/index.html#account" aria-label="我的" title="我的">○</a>
@@ -2076,7 +2077,7 @@ let plannerUiInitialized=false;
 function initializePlannerUI(){
   if(plannerUiInitialized) return;
   plannerUiInitialized=true;
-  document.title = "🧭 旅行行程规划 · " + COUNTRY;
+  document.title = "旅序 · 行程规划 · " + COUNTRY;
   $("computeBtn").addEventListener("click", computeDays);
   $("resetBtn").addEventListener("click", resetAll);
   $("tripName").addEventListener("input",()=>{ plan.tripName=$("tripName").value.trim(); savePlan(); });

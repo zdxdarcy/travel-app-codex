@@ -25,7 +25,7 @@ a { color: inherit; }
 .app-shell { min-height: 100vh; padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom)); }
 .topbar { align-items: center; background: rgba(247,248,250,.96); border-bottom: 1px solid var(--line); display: flex; height: var(--topbar-height); justify-content: space-between; padding: 0 max(20px, calc((100vw - 1120px) / 2)); position: sticky; top: 0; z-index: 10; backdrop-filter: blur(14px); }
 .brand { align-items: center; display: inline-flex; font-size: 18px; font-weight: 750; gap: 8px; text-decoration: none; }
-.brand-mark { align-items: center; background: var(--teal); border-radius: 9px; color: white; display: inline-flex; font-size: 18px; height: 28px; justify-content: center; transform: rotate(-8deg); width: 28px; }
+.brand-mark { border-radius: 9px; display: block; flex: 0 0 30px; height: 30px; object-fit: contain; width: 30px; }
 .topbar-actions { align-items: center; display: flex; gap: 14px; }
 .sync-state { align-items: center; color: var(--muted); display: inline-flex; font-size: 12px; gap: 7px; white-space: nowrap; }
 .status-dot { background: #aab4b8; border-radius: 50%; display: inline-block; height: 7px; width: 7px; }
@@ -177,10 +177,10 @@ h3 { font-size: 20px; line-height: 1.25; margin: 0; }
 .detail-card-heading { align-items: start; display: flex; gap: 16px; justify-content: space-between; }
 .detail-card-heading-main { min-width: 0; }
 .detail-title-row { align-items: start; display: flex; gap: 10px; min-width: 0; }
-.detail-card-heading h3 { margin-top: 8px; }
+.detail-card-heading h3 { margin: 0 0 7px; }
 .detail-title-row h3 { min-width: 0; overflow-wrap: anywhere; }
-.map-quick-link { align-items: center; align-self: start; background: #f1f6f5; border: 1px solid #c9ddda; color: var(--teal-dark); display: inline-flex; flex: 0 0 36px; height: 36px; justify-content: center; margin-left: auto; text-decoration: none; width: 36px; }
-.map-quick-link:hover, .map-quick-link:focus-visible { background: #e2f0ed; border-color: #91b8b3; }
+.map-quick-link { align-items: center; align-self: flex-start; background: transparent; border: 1px solid var(--line); border-radius: 6px; color: var(--teal); display: inline-flex; flex: 0 0 36px; height: 36px; justify-content: center; line-height: 1; margin-left: auto; margin-top: -2px; text-decoration: none; width: 36px; }
+.map-quick-link:hover, .map-quick-link:focus-visible { background: #e7f1ed; border-color: var(--teal); }
 .google-maps-icon { display: block; flex: 0 0 22px; height: 22px; object-fit: contain; width: 22px; }
 .sr-only { clip: rect(0 0 0 0); clip-path: inset(50%); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }
 .detail-order { align-items: center; background: #e8f0ef; border-radius: 50%; color: var(--teal-dark); display: inline-flex; font-size: 12px; font-weight: 800; height: 28px; justify-content: center; width: 28px; }

@@ -29,7 +29,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .app-shell { min-height: 100vh; padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom)); }
 .topbar { height: 64px; padding: 0 max(20px, calc((100vw - 1120px) / 2)); display: flex; align-items: center; justify-content: space-between; background: rgba(247, 248, 250, .96); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 10; backdrop-filter: blur(14px); }
 .brand { display: inline-flex; align-items: center; gap: 9px; color: var(--ink); font-size: 16px; font-weight: 800; letter-spacing: .02em; text-decoration: none; }
-.brand-mark { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; background: var(--green); color: #fff; font-size: 18px; transform: rotate(-8deg); }
+.brand-mark { width: 30px; height: 30px; display: block; flex: 0 0 30px; border-radius: 9px; object-fit: contain; }
 .topbar-actions { display: flex; align-items: center; gap: 10px; }
 .sync-state { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; background: #9da6aa; }
