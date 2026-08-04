@@ -1,4 +1,4 @@
-import { guideClient, GuideError } from "./repository.js?v=20260812";
+import { guideClient, GuideError } from "./repository.js?v=20260814";
 
 const state = {
   snapshot: null,
@@ -7,6 +7,7 @@ const state = {
   loading: true,
   error: null,
   busy: new Set(),
+  extraLoads: new Map(),
   pollTimer: null
 };
 
@@ -150,6 +151,23 @@ function render() {
     if (card) scrollToDetailCard(card, { behavior: "instant", updateRoute: false });
     syncDetailSelection();
   });
+  queueSelectedExtras();
+}
+
+function queueSelectedExtras() {
+  if (!state.snapshot || (state.view !== "day" && state.view !== "detail")) return;
+  const day = state.snapshot.days.find((item) => item.id === state.selectedDayId) || state.snapshot.days[0];
+  const detailItems = day?.items.filter(isDetailItem) || [];
+  const selectedId = requestedItemId();
+  const selected = detailItems.find((item) => item.id === selectedId) || detailItems[0];
+  if (!selected?.placeId || !selected.details || selected.details.extrasLoaded || state.extraLoads.has(selected.id)) return;
+  const load = guideClient.loadAttractionExtras(selected.placeId).then(({ media, reviews }) => {
+    selected.details.photos = (media || []).filter((row) => row.media_type === "image").map((row) => ({ url: row.url, alt: row.alt_text || selected.details.name })).slice(0, 6);
+    selected.details.reviewSummaries = Array.isArray(reviews) ? reviews : [];
+    selected.details.extrasLoaded = true;
+    render();
+  }).catch(() => {}).finally(() => state.extraLoads.delete(selected.id));
+  state.extraLoads.set(selected.id, load);
 }
 
 function emptyView() {
@@ -299,7 +317,7 @@ function detailPlaceDetails(details) {
     details.price ? `<span><b>票价</b>${escapeHtml(details.price)}</span>` : "",
     details.rating != null ? `<span><b>评价</b>${details.rating.toFixed(1)} / 5${details.reviewCount != null ? ` · ${details.reviewCount} 条` : ""}</span>` : ""
   ].filter(Boolean).join("");
-  const photos = details.photos.length ? `<div class="photo-strip detail-photo-strip">${details.photos.map((photo, index) => `<img src="${escapeHtml(photo.url)}" alt="${escapeHtml(photo.alt)}" loading="${index === 0 ? "eager" : "lazy"}" decoding="async">`).join("")}</div>` : "";
+  const photos = details.photos.length ? `<div class="photo-strip detail-photo-strip">${details.photos.map((photo) => `<img src="${escapeHtml(photo.url)}" alt="${escapeHtml(photo.alt)}" loading="lazy" decoding="async">`).join("")}</div>` : "";
   const reviews = renderReviewSummary(details.reviewSummaries, 5);
   return `${details.intro ? `<p class="item-intro detail-intro">${escapeHtml(details.intro)}</p>` : ""}${photos}${facts ? `<div class="fact-row detail-facts">${facts}</div>` : ""}${details.tips ? `<p class="tips"><b>实用贴士</b>${escapeHtml(details.tips)}</p>` : ""}${reviews}`;
 }
@@ -435,6 +453,7 @@ async function load() {
       setSync(result.reason === "AUTH_REQUIRED" ? "offline" : "ready", result.reason === "AUTH_REQUIRED" ? "需要登录" : "无当前行程");
     } else {
       state.snapshot = result.snapshot;
+      state.extraLoads.clear();
       state.emptyReason = null;
       routeFromLocation();
       setSync("ready", "已同步");
@@ -458,6 +477,7 @@ function startPolling() {
       const result = await guideClient.loadActiveGuide();
       if (result.kind === "ready" && result.snapshot.trip.id === state.snapshot?.trip.id && result.snapshot.trip.revision !== state.snapshot.trip.revision) {
         state.snapshot = result.snapshot;
+        state.extraLoads.clear();
         routeFromLocation();
         render();
         setSync("ready", "已更新");

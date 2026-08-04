@@ -241,17 +241,24 @@ function mergeAccommodation(itemAccommodation, metadataAccommodation) {
 async function loadAttractionBundle(ids) {
   if (!ids.length) return { attractions: new Map(), media: new Map(), reviews: new Map() };
   const idFilter = ids.join(",");
-  const [attractions, media, reviews] = await Promise.all([
-    rest(`attractions?select=${ATTRACTION_FIELDS}&id=in.(${idFilter})`),
-    rest(`attraction_media?select=id,attraction_id,media_type,url,alt_text,sort_order&attraction_id=in.(${idFilter})&is_active=eq.true&order=sort_order`),
-    rest(`attraction_review_summaries?select=id,attraction_id,review_type,review_text,sort_order,source_name&attraction_id=in.(${idFilter})&is_active=eq.true&order=sort_order`)
-  ]);
+  const attractions = await rest(`attractions?select=${ATTRACTION_FIELDS}&id=in.(${idFilter})`);
+  const media = [];
+  const reviews = [];
   const attractionMap = new Map((attractions || []).map((row) => [row.id, row]));
   const mediaMap = new Map();
   (media || []).forEach((row) => { if (!mediaMap.has(row.attraction_id)) mediaMap.set(row.attraction_id, []); mediaMap.get(row.attraction_id).push(row); });
   const reviewMap = new Map();
   (reviews || []).forEach((row) => { if (!reviewMap.has(row.attraction_id)) reviewMap.set(row.attraction_id, []); reviewMap.get(row.attraction_id).push(row); });
   return { attractions: attractionMap, media: mediaMap, reviews: reviewMap };
+}
+
+export async function loadAttractionExtras(attractionId) {
+  const id = queryValue(attractionId);
+  const [media, reviews] = await Promise.all([
+    rest(`attraction_media?select=id,attraction_id,media_type,url,alt_text,sort_order&attraction_id=eq.${id}&is_active=eq.true&order=sort_order`),
+    rest(`attraction_review_summaries?select=id,attraction_id,review_type,review_text,sort_order,source_name&attraction_id=eq.${id}&is_active=eq.true&order=sort_order`)
+  ]);
+  return { media: Array.isArray(media) ? media : [], reviews: Array.isArray(reviews) ? reviews : [] };
 }
 
 function buildSnapshot(trip, days, items, bundle) {
@@ -391,4 +398,4 @@ export function externalMapUrl(query) {
   return url.toString();
 }
 
-export const guideClient = { loadActiveGuide, updateItem, externalMapUrl };
+export const guideClient = { loadActiveGuide, loadAttractionExtras, updateItem, externalMapUrl };

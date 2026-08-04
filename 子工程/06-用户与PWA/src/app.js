@@ -1,4 +1,5 @@
 import { supabaseClient as client } from "./supabase-client.js";
+import { cacheKeys, readCache, writeCache } from "./idb-cache.js";
 
 const state = {
   view: location.hash.replace(/^#/, "") || "discover",
@@ -7,11 +8,14 @@ const state = {
   countries: [],
   activeTripId: null,
   collection: { status: "idle", tree: [], errors: [], requestId: 0 },
-  latest: { status: "idle", items: [], fromCache: false, cachedAt: 0, requestId: 0 },
-  recommendations: { level: "continents", continent: null, country: null, city: null, items: [], detail: null, detailId: null, detailCache: new Map(), detailValues: new Map(), loading: false },
+  latest: { status: "loading", items: [], fromCache: false, cachedAt: 0, requestId: 0 },
+  recommendations: { level: "continents", continent: null, country: null, city: null, items: [], detail: null, detailId: null, detailCache: new Map(), detailValues: new Map(), loading: true },
   recovery: false,
   installPrompt: null,
-  plannerFabOpen: false
+  plannerFabOpen: false,
+  pendingExternalRoute: null,
+  externalFrames: { planner: null, guide: null },
+  discoverMounted: false
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -23,10 +27,42 @@ const EXTERNAL_VIEWS = {
   planner: "../04-旅程规划/planner.html",
   guide: "../05-当前行程导览/guide.html"
 };
+const EXTERNAL_VIEW_LABELS = { planner: "行程规划", guide: "当前导览" };
 const LATEST_CACHE_KEY = "travel-app-latest-catalog-v2";
 const LATEST_CACHE_TTL = 10 * 60 * 1000;
 const LATEST_CACHE_STALE_LIMIT = 24 * 60 * 60 * 1000;
 let latestFeedRequest = null;
+
+function catalogCacheKey(level, id = "root") {
+  return `${cacheKeys.catalog}:${level}:${id || "root"}`;
+}
+
+function scopedCacheKey(key) {
+  return `${key}:${client.user?.id || "guest"}`;
+}
+
+async function readCatalogCache(level, id = "root") {
+  const cached = await readCache(catalogCacheKey(level, id));
+  return cached && Array.isArray(cached.items) ? cached : null;
+}
+
+function writeCatalogCache(level, id, items) {
+  if (!Array.isArray(items) || !items.length) return;
+  void writeCache(catalogCacheKey(level, id), { cachedAt: Date.now(), items });
+}
+
+async function loadCatalogLevel(level, id, loader) {
+  const cached = await readCatalogCache(level, id);
+  if (cached?.items?.length) {
+    state.recommendations.items = cached.items;
+    state.recommendations.loading = false;
+    recommendationStatus("本机缓存 · 正在更新");
+    renderRecommendations();
+  }
+  const items = await loader();
+  writeCatalogCache(level, id, items);
+  return items;
+}
 
 const elements = {
   toast: $("#toast"),
@@ -59,27 +95,27 @@ function persistGuest() {
 
 function setView(view) {
   const valid = ["discover", "planner", "guide", "trips", "account"];
+  const previousView = state.view;
   state.view = valid.includes(view) ? view : "discover";
   renderPlannerFab();
-  if (EXTERNAL_VIEWS[state.view]) {
-    // The planner navigation entry always starts a fresh draft. Existing trips
-    // are opened only through the explicit edit link below, which carries a
-    // tripId and is handled by planner.html's hydration path.
-    const target = state.view === "planner"
-      ? `${EXTERNAL_VIEWS.planner}?newTrip=1`
-      : EXTERNAL_VIEWS[state.view];
-    window.location.assign(target);
-    return;
-  }
   if (location.hash !== `#${state.view}`) history.replaceState(null, "", `#${state.view}`);
   $$(`.view`).forEach((section) => { section.hidden = section.dataset.view !== state.view; });
   $$(`.nav-item`).forEach((item) => item.classList.toggle("is-active", item.dataset.nav === state.view));
+  if (EXTERNAL_VIEWS[state.view]) {
+    ensureExternalView(state.view, state.pendingExternalRoute?.view === state.view ? state.pendingExternalRoute : {});
+    state.pendingExternalRoute = null;
+    return;
+  }
   if (state.view === "account") renderAccount();
   if (state.view === "trips") renderLists();
   if (state.view === "guide") renderGuide();
   if (state.view === "discover") {
-    renderLatestRelease();
-    renderRecommendations();
+    if (previousView !== "discover" || !state.discoverMounted) {
+      renderLatestRelease();
+      renderRecommendations();
+      state.discoverMounted = true;
+    }
+    scheduleExternalPrefetch();
   }
 }
 
@@ -95,6 +131,98 @@ function closeModal() {
   elements.backdrop.hidden = true;
   [elements.authModal, elements.tripModal, elements.installModal].forEach((item) => { item.hidden = true; item.innerHTML = ""; });
   document.body.classList.remove("modal-open");
+}
+
+function externalViewUrl(view, route = {}) {
+  const url = new URL(EXTERNAL_VIEWS[view], window.location.href);
+  url.searchParams.set("embedded", "1");
+  if (view === "planner") {
+    if (route.tripId) {
+      url.searchParams.set("tripId", String(route.tripId));
+      url.searchParams.delete("newTrip");
+    } else url.searchParams.set("newTrip", "1");
+  }
+  return url.href;
+}
+
+function prepareEmbeddedDocument(frame, view) {
+  try {
+    const documentRoot = frame.contentDocument;
+    if (!documentRoot || documentRoot.querySelector("style[data-app-shell-embed]")) return;
+    const style = documentRoot.createElement("style");
+    style.dataset.appShellEmbed = "true";
+    style.textContent = `
+      .topbar, .bottom-nav { display: none !important; }
+      .app-shell { min-height: auto !important; padding-bottom: 0 !important; }
+      body { min-height: 100%; }
+      .main-content { padding-top: 20px !important; padding-bottom: 24px !important; max-width: none !important; }
+      .save-fab, .selbar { bottom: 18px !important; }
+      .toast { bottom: 20px !important; }
+    `;
+    documentRoot.head.appendChild(style);
+  } catch (_) {
+    // file:// previews can reject cross-document access; the direct URL still works.
+  }
+}
+
+function ensureExternalView(view, route = {}) {
+  const mount = document.querySelector(`[data-external-mount="${view}"]`);
+  if (!mount || !EXTERNAL_VIEWS[view]) return;
+  const source = externalViewUrl(view, route);
+  const current = state.externalFrames[view];
+  if (current?.source === source && current.frame?.isConnected) return;
+  if (current?.frame?.isConnected) current.frame.remove();
+
+  const frame = document.createElement("iframe");
+  frame.className = "external-view-frame";
+  frame.title = EXTERNAL_VIEW_LABELS[view] || "应用视图";
+  frame.loading = "lazy";
+  frame.referrerPolicy = "same-origin";
+  frame.src = source;
+  const loading = mount.querySelector("[data-external-loading]");
+  if (loading) loading.hidden = false;
+  mount.dataset.state = "loading";
+  mount.setAttribute("aria-busy", "true");
+  frame.addEventListener("load", () => {
+    prepareEmbeddedDocument(frame, view);
+    mount.dataset.state = "ready";
+    mount.setAttribute("aria-busy", "false");
+    if (loading) loading.hidden = true;
+  }, { once: true });
+  frame.addEventListener("error", () => {
+    mount.dataset.state = "error";
+    mount.setAttribute("aria-busy", "false");
+    if (loading) {
+      loading.hidden = false;
+      loading.textContent = `${EXTERNAL_VIEW_LABELS[view] || "页面"}暂时无法加载，请重试。`;
+    }
+  }, { once: true });
+  mount.append(frame);
+  state.externalFrames[view] = { frame, source };
+}
+
+function reloadExternalView(view) {
+  const current = state.externalFrames[view];
+  if (!current) return;
+  current.frame?.remove();
+  state.externalFrames[view] = null;
+  if (state.view === view) ensureExternalView(view);
+}
+
+function scheduleExternalPrefetch() {
+  const run = () => {
+    ["planner", "guide"].forEach((view) => {
+      const href = externalViewUrl(view, view === "planner" ? { view, newTrip: true } : { view });
+      if (document.head.querySelector(`link[rel="prefetch"][href="${CSS.escape(href)}"]`)) return;
+      const link = document.createElement("link");
+      link.rel = "prefetch";
+      link.as = "document";
+      link.href = href;
+      document.head.appendChild(link);
+    });
+  };
+  if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: 4000 });
+  else setTimeout(run, 1800);
 }
 
 function authForm(mode = "login", message = "") {
@@ -232,7 +360,8 @@ function writeLatestCache(items) {
 function latestCityItems(items) {
   const cities = new Map();
   for (const item of items || []) {
-    if (!item?.id || !item.country?.id || !item.city?.id) continue;
+    const sourceId = item?.id || item?.city?.id;
+    if (!sourceId || !item.country?.id || !item.city?.id) continue;
     if (!cities.has(item.city.id)) {
       // Keep the newest attraction as the city's ordering anchor, but make
       // the city the public recommendation target.
@@ -252,14 +381,17 @@ function renderLatestRelease() {
   if (!content || !status) return;
   const latest = state.latest;
   if (latest.status === "loading" && !latest.items.length) {
-    content.innerHTML = `<span class="latest-release-empty">正在读取最新上线内容。</span>`;
+    content.innerHTML = `<span class="latest-release-skeleton" aria-hidden="true"></span><span class="latest-release-skeleton" aria-hidden="true"></span>`;
+    content.setAttribute("aria-busy", "true");
   } else if (!latest.items.length) {
     const emptyText = latest.status === "error" && client.isConfigured()
       ? "网络不可用，暂无可用的本机缓存。"
       : client.isConfigured() ? "公开目录暂无可用的最新景点。" : "公开目录尚未配置，暂无本机缓存。";
     content.innerHTML = `<span class="latest-release-empty">${emptyText}</span>`;
+    content.removeAttribute("aria-busy");
   } else {
     content.innerHTML = latest.items.map((item) => `<button class="latest-release-card" type="button" data-latest-city="${escapeHtml(item.city.id)}" aria-label="查看 ${escapeHtml(item.country.name_zh)} ${escapeHtml(item.city.name_zh)} 的景点"><strong>${escapeHtml(item.country.name_zh)}</strong><span class="latest-release-city">${escapeHtml(item.city.name_zh)}</span><span class="latest-release-meta">查看城市景点</span></button>`).join("");
+    content.removeAttribute("aria-busy");
   }
   if (latest.status === "loading") status.textContent = latest.items.length ? "正在更新 · 先显示本机缓存" : "";
   else if (latest.status === "error" && latest.fromCache) status.textContent = "网络不可用 · 显示本机缓存";
@@ -269,7 +401,11 @@ function renderLatestRelease() {
 }
 
 async function hydrateLatestRecommendations(force = false) {
-  const cached = readLatestCache();
+  const localCached = readLatestCache();
+  const idbCached = await readCache(cacheKeys.latestCities);
+  const cached = idbCached && (!localCached || Number(idbCached.cachedAt || 0) >= Number(localCached.cachedAt || 0))
+    ? idbCached
+    : localCached;
   const cacheAge = cached ? Date.now() - cached.cachedAt : Infinity;
   if (cached && ((!force && cacheAge <= LATEST_CACHE_TTL) || (!client.isConfigured() && cacheAge <= LATEST_CACHE_STALE_LIMIT))) {
     state.latest = { status: "ready", items: latestCityItems(cached.items), fromCache: true, cachedAt: cached.cachedAt, requestId: state.latest.requestId };
@@ -288,11 +424,17 @@ async function hydrateLatestRecommendations(force = false) {
     state.latest = { status: "loading", items: cachedItems, fromCache: Boolean(cachedItems.length), cachedAt: cached?.cachedAt || 0, requestId };
     renderLatestRelease();
     try {
-      const rows = await client.listLatestPublishedAttractions(12);
+      // City recommendations do not need attraction rows. The attraction
+      // catalog is fetched only after a city is opened, keeping the discover
+      // shell light and deferring media/review work until detail view.
+      const rows = await client.listLatestPublishedCities(2);
       const items = latestCityItems(rows);
       if (state.latest.requestId !== requestId) return;
       state.latest = { status: items.length ? "ready" : "empty", items, fromCache: false, cachedAt: Date.now(), requestId };
-      if (items.length) writeLatestCache(items);
+      if (items.length) {
+        writeLatestCache(items);
+        void writeCache(cacheKeys.latestCities, { cachedAt: Date.now(), items });
+      }
     } catch (error) {
       if (state.latest.requestId !== requestId) return;
       state.latest = cachedItems.length
@@ -386,7 +528,7 @@ function detailGallery(item, detail) {
     .map((photo) => ({ ...photo, url: mediaUrl(photo?.url) }))
     .filter((photo) => photo?.media_type === "image" && photo.url)
     .slice(0, 6);
-  if (media.length) return `<div class="detail-gallery">${media.map((photo, index) => `<div class="detail-gallery-item"><img src="${escapeHtml(photo.url)}" alt="${escapeHtml(photo.alt_text || item.name_zh)}" loading="${index === 0 ? "eager" : "lazy"}" decoding="async" onerror="this.parentElement.classList.add('is-broken');this.remove()"><span class="detail-image-fallback" aria-hidden="true">图片暂不可用</span></div>`).join("")}</div>`;
+  if (media.length) return `<div class="detail-gallery">${media.map((photo) => `<div class="detail-gallery-item"><img src="${escapeHtml(photo.url)}" alt="${escapeHtml(photo.alt_text || item.name_zh)}" loading="lazy" decoding="async" onerror="this.parentElement.classList.add('is-broken');this.remove()"><span class="detail-image-fallback" aria-hidden="true">图片暂不可用</span></div>`).join("")}</div>`;
   return `<div class="detail-media-placeholder" aria-hidden="true"></div>`;
 }
 
@@ -397,13 +539,31 @@ function detailReviews(detail) {
   return `<div class="detail-reviews-slot" data-detail-reviews><div class="review-summary"><span class="meta-label">评价摘要</span><div class="review-list">${entries.map((review) => { const [label, className] = labels[review?.review_type] || ["评价", "neutral"]; return `<div class="review-entry review-${className}"><span class="review-label">${label}</span><p>${escapeHtml(review?.review_text || "暂无评价内容")}</p></div>`; }).join("")}</div></div></div>`;
 }
 
+function detailMapCard(item, map) {
+  return `<div class="detail-map-card" data-map-query="${escapeHtml(map.query)}" data-map-title="${escapeHtml(item.name_zh)}"><button class="detail-map-load" type="button" data-map-load>点击加载地图</button><a href="${map.url}" target="_blank" rel="noreferrer">在 Google Maps 中查看 ↗</a></div>`;
+}
+
 function recommendationDetailCard(item, index) {
   const rec = state.recommendations;
   const detail = rec.detailValues?.get(item.id) || null;
   const mode = selectionMode(item.id);
   const map = mapTarget(item);
   const facts = `<div class="detail-facts"><span>建议时长<strong>${escapeHtml(item.duration_label || "暂无")}</strong></span><span>评分<strong>${item.rating != null ? `${escapeHtml(item.rating)} / 5` : "暂无"}</strong></span><span>评价<strong>${item.review_count != null ? escapeHtml(item.review_count) : "暂无"}</strong></span></div><div class="detail-facts detail-copy"><span>开放时间<strong>${escapeHtml(catalogText(item.opening_hours))}</strong></span><span>票价<strong>${escapeHtml(catalogText(item.ticket_info))}</strong></span></div>`;
-  return `<article class="attraction-detail-card ${item.id === rec.detailId ? "is-selected" : ""}" data-rec-detail-card="${escapeHtml(item.id)}"><header class="detail-heading"><div class="detail-heading-copy"><span class="eyebrow">${escapeHtml(item.tag || "景点详情")}</span><div class="detail-title-line"><h2>${escapeHtml(item.name_zh)}</h2>${map ? `<a class="detail-map-shortcut" href="${map.url}" target="_blank" rel="noreferrer" aria-label="在地图中打开 ${escapeHtml(item.name_zh)}" title="打开地图">${googleMapsIcon()}</a>` : ""}</div><p>${escapeHtml(item.name_en || "")}</p></div><button class="visit-mode mode-${mode}" type="button" data-rec-visit="${escapeHtml(item.id)}" aria-pressed="${mode !== "none"}">${{ inside: "入内参观", outside: "外部参观", none: "未安排" }[mode]}</button></header><div class="enhanced-detail-layout"><div class="enhanced-detail-main"><p class="detail-intro">${escapeHtml(item.description_zh || item.summary_zh || "暂无介绍")}</p><div data-detail-gallery>${detailGallery(item, detail)}</div>${facts}<p class="detail-note">${escapeHtml(item.visit_notes || "")}</p></div><aside class="enhanced-detail-aside">${map ? `<div class="detail-map-card"><iframe title="${escapeHtml(item.name_zh)} 地图" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://www.google.com/maps?q=${encodeURIComponent(map.query)}&output=embed"></iframe><a href="${map.url}" target="_blank" rel="noreferrer">在地图中查看 ↗</a></div>` : ""}${detailReviews(detail)}</aside></div></article>`;
+  return `<article class="attraction-detail-card ${item.id === rec.detailId ? "is-selected" : ""}" data-rec-detail-card="${escapeHtml(item.id)}"><header class="detail-heading"><div class="detail-heading-copy"><span class="eyebrow">${escapeHtml(item.tag || "景点详情")}</span><div class="detail-title-line"><h2>${escapeHtml(item.name_zh)}</h2>${map ? `<a class="detail-map-shortcut" href="${map.url}" target="_blank" rel="noreferrer" aria-label="在地图中打开 ${escapeHtml(item.name_zh)}" title="打开地图">${googleMapsIcon()}</a>` : ""}</div><p>${escapeHtml(item.name_en || "")}</p></div><button class="visit-mode mode-${mode}" type="button" data-rec-visit="${escapeHtml(item.id)}" aria-pressed="${mode !== "none"}">${{ inside: "入内参观", outside: "外部参观", none: "未安排" }[mode]}</button></header><div class="enhanced-detail-layout"><div class="enhanced-detail-main"><p class="detail-intro">${escapeHtml(item.description_zh || item.summary_zh || "暂无介绍")}</p><div data-detail-gallery>${detailGallery(item, detail)}</div>${facts}<p class="detail-note">${escapeHtml(item.visit_notes || "")}</p></div><aside class="enhanced-detail-aside">${map ? detailMapCard(item, map) : ""}${detailReviews(detail)}</aside></div></article>`;
+}
+
+function loadDetailMap(button) {
+  const container = button.closest("[data-map-query]");
+  if (!container || container.querySelector("iframe")) return;
+  const query = container.dataset.mapQuery || "";
+  const title = container.dataset.mapTitle || "景点";
+  if (!query) return;
+  const iframe = document.createElement("iframe");
+  iframe.title = `${title} 地图`;
+  iframe.loading = "lazy";
+  iframe.referrerPolicy = "no-referrer-when-downgrade";
+  iframe.src = `https://www.google.com/maps?q=${encodeURIComponent(query)}&output=embed`;
+  button.replaceWith(iframe);
 }
 
 function renderRecommendationDetailDeck() {
@@ -418,10 +578,16 @@ function syncRecommendationDetailSelection() {
   if (!deck) return;
   const cards = [...deck.querySelectorAll("[data-rec-detail-card]")];
   if (!cards.length) return;
-  const targetLeft = deck.scrollLeft;
+  // Compare card centers against the visible deck center. Using offsetLeft
+  // versus scrollLeft is wrong when the deck has centering padding or an
+  // edge-to-edge mobile margin, and can select a neighboring/middle card.
+  const deckRect = deck.getBoundingClientRect();
+  const viewportCenter = deckRect.left + deck.clientWidth / 2;
   const index = cards.reduce((best, card, candidate) => {
-    const bestDistance = Math.abs(cards[best].offsetLeft - targetLeft);
-    const candidateDistance = Math.abs(card.offsetLeft - targetLeft);
+    const bestRect = cards[best].getBoundingClientRect();
+    const candidateRect = card.getBoundingClientRect();
+    const bestDistance = Math.abs(bestRect.left + bestRect.width / 2 - viewportCenter);
+    const candidateDistance = Math.abs(candidateRect.left + candidateRect.width / 2 - viewportCenter);
     return candidateDistance < bestDistance ? candidate : best;
   }, 0);
   const item = state.recommendations.items[index];
@@ -459,7 +625,13 @@ function scrollRecommendationDetail(id, { behavior = "smooth" } = {}) {
   const deck = card.closest("[data-rec-detail-deck]");
   const scrollBehavior = behavior === "instant" ? "auto" : behavior;
   if (deck) {
-    const centeredLeft = card.offsetLeft - (deck.clientWidth - card.offsetWidth) / 2;
+    // Derive the scroll delta from rendered geometry so padding, margins and
+    // responsive card widths are handled consistently at every breakpoint.
+    const deckRect = deck.getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+    const cardCenter = cardRect.left + cardRect.width / 2;
+    const viewportCenter = deckRect.left + deck.clientWidth / 2;
+    const centeredLeft = deck.scrollLeft + (cardCenter - viewportCenter);
     const maxLeft = Math.max(0, deck.scrollWidth - deck.clientWidth);
     deck.scrollTo({ left: Math.max(0, Math.min(centeredLeft, maxLeft)), behavior: scrollBehavior });
   }
@@ -499,12 +671,14 @@ function renderRecommendations() {
   if (!content) return;
   recommendationBreadcrumb();
   if (state.recommendations.loading) {
-    content.innerHTML = `<div class="recommendation-empty"><strong>正在加载目录</strong><span>请稍候。</span></div>`;
+    content.innerHTML = `<div class="recommendation-skeleton-grid" aria-hidden="true"><span class="recommendation-skeleton"></span><span class="recommendation-skeleton"></span><span class="recommendation-skeleton"></span><span class="recommendation-skeleton"></span></div>`;
+    content.setAttribute("aria-busy", "true");
     return;
   }
   const { level, items, detail } = state.recommendations;
   if (level === "detail" && detail) {
     content.innerHTML = renderRecommendationDetailDeck();
+    content.removeAttribute("aria-busy");
     requestAnimationFrame(() => {
       const card = content.querySelector(`[data-rec-detail-card="${CSS.escape(state.recommendations.detailId)}"]`);
       scrollRecommendationDetail(state.recommendations.detailId, { behavior: "instant" });
@@ -515,10 +689,12 @@ function renderRecommendations() {
   }
   if (!items.length) {
     content.innerHTML = `<div class="recommendation-empty"><strong>暂无可显示内容</strong><span>${client.isConfigured() ? "目录中还没有启用记录。" : "注入 publishable key 后即可读取线上目录。"}</span></div>`;
+    content.removeAttribute("aria-busy");
     return;
   }
   const kind = level === "continents" ? "continent" : level === "countries" ? "country" : level === "cities" ? "city" : "attraction";
   content.innerHTML = `<div class="recommendation-grid">${items.map((item) => recommendationCard(item, kind)).join("")}</div>`;
+  content.removeAttribute("aria-busy");
 }
 
 async function resetDiscoverHome() {
@@ -533,8 +709,15 @@ async function resetDiscoverHome() {
   rec.detailValues = new Map();
   rec.loading = true;
   renderRecommendations();
+  const cached = await readCatalogCache("continents");
+  if (cached?.items?.length) {
+    rec.items = cached.items;
+    rec.loading = false;
+    recommendationStatus("本机缓存 · 正在更新");
+    renderRecommendations();
+  }
   if (!client.isConfigured()) {
-    rec.items = [];
+    rec.items = cached?.items || [];
     rec.loading = false;
     recommendationStatus("游客模式：目录需要部署配置后读取。");
     renderRecommendations();
@@ -542,6 +725,7 @@ async function resetDiscoverHome() {
   }
   try {
     rec.items = await client.listContinents();
+    writeCatalogCache("continents", "root", rec.items);
     recommendationStatus("公开目录");
   } catch (error) {
     rec.items = [];
@@ -561,21 +745,33 @@ function loadRecommendationDetailExtras() {
 
 async function hydrateRecommendations({ refreshLatest = false } = {}) {
   await hydrateLatestRecommendations(refreshLatest);
+  state.recommendations.level = "continents";
+  state.recommendations.continent = null;
+  state.recommendations.country = null;
+  state.recommendations.city = null;
+  state.recommendations.detailCache = new Map();
+  state.recommendations.detailValues = new Map();
+  state.recommendations.detailId = null;
+  const cached = await readCatalogCache("continents");
+  if (cached?.items?.length) {
+    state.recommendations.items = cached.items;
+    state.recommendations.loading = false;
+    recommendationStatus("本机缓存 · 正在更新");
+    renderRecommendations();
+  }
   if (!client.isConfigured()) {
+    state.recommendations.items = cached?.items || [];
+    state.recommendations.loading = false;
     recommendationStatus("游客模式：目录需要部署配置后读取。");
+    renderRecommendations();
     return;
   }
-  state.recommendations.loading = true;
-  renderRecommendations();
+  state.recommendations.loading = !cached?.items?.length;
+  if (state.recommendations.loading) renderRecommendations();
   try {
-    state.recommendations.level = "continents";
-    state.recommendations.continent = null;
-    state.recommendations.country = null;
-    state.recommendations.city = null;
-    state.recommendations.detailCache = new Map();
-    state.recommendations.detailValues = new Map();
-    state.recommendations.detailId = null;
-    state.recommendations.items = await client.listContinents();
+    const items = await client.listContinents();
+    state.recommendations.items = items;
+    writeCatalogCache("continents", "root", items);
     recommendationStatus("公开目录");
   } catch (error) {
     state.recommendations.items = [];
@@ -604,7 +800,7 @@ async function openLatestCity(cityId) {
   rec.detailId = null;
   renderRecommendations();
   try {
-    const items = await client.listAttractions(item.city.id);
+    const items = await loadCatalogLevel("attractions", item.city.id, () => client.listAttractions(item.city.id));
     if (!items.length) throw new Error("该城市暂时没有启用景点");
     rec.items = items;
     rec.detail = null;
@@ -634,15 +830,15 @@ async function openRecommendation(kind, id) {
     if (kind === "continent") {
       rec.continent = rec.items.find((item) => item.id === id) || null;
       rec.level = "countries";
-      rec.items = await client.listCountries(id);
+      rec.items = await loadCatalogLevel("countries", id, () => client.listCountries(id));
     } else if (kind === "country") {
       rec.country = rec.items.find((item) => item.id === id) || null;
       rec.level = "cities";
-      rec.items = await client.listCities(id);
+      rec.items = await loadCatalogLevel("cities", id, () => client.listCities(id));
     } else if (kind === "city") {
       rec.city = rec.items.find((item) => item.id === id) || null;
       rec.level = "attractions";
-      rec.items = await client.listAttractions(id);
+      rec.items = await loadCatalogLevel("attractions", id, () => client.listAttractions(id));
     }
     recommendationStatus("公开目录");
   } catch (error) {
@@ -687,9 +883,9 @@ async function backRecommendation() {
   renderRecommendations();
   try {
     if (rec.level === "detail") { rec.level = "attractions"; rec.detail = null; rec.detailId = null; }
-    else if (rec.level === "attractions") { rec.level = "cities"; rec.items = await client.listCities(rec.country.id); }
-    else if (rec.level === "cities") { rec.level = "countries"; rec.items = await client.listCountries(rec.continent.id); }
-    else if (rec.level === "countries") { rec.level = "continents"; rec.items = await client.listContinents(); }
+    else if (rec.level === "attractions") { rec.level = "cities"; rec.items = await loadCatalogLevel("cities", rec.country.id, () => client.listCities(rec.country.id)); }
+    else if (rec.level === "cities") { rec.level = "countries"; rec.items = await loadCatalogLevel("countries", rec.continent.id, () => client.listCountries(rec.continent.id)); }
+    else if (rec.level === "countries") { rec.level = "continents"; rec.items = await loadCatalogLevel("continents", "root", () => client.listContinents()); }
   } catch (error) {
     recommendationStatus(`目录暂不可用：${client.authError(error)}`);
   } finally {
@@ -980,8 +1176,12 @@ async function toggleCollectionVisit(attractionId) {
 }
 
 function renderPlanner() {
-  $("#tripCountLabel").textContent = `${state.trips.length} 个`;
+  const count = $("#tripCountLabel");
   const target = $("#plannerTripList");
+  // The planner is loaded into its own lazy frame. Keep this renderer as a
+  // compatibility hook for older shells, but do not touch removed placeholders.
+  if (!count || !target) return;
+  count.textContent = `${state.trips.length} 个`;
   if (!state.trips.length) {
     target.innerHTML = `<div class="planner-empty"><span>还没有行程</span><button class="primary-button small" type="button" id="plannerEmptyNew">新建行程</button></div>`;
     $("#plannerEmptyNew")?.addEventListener("click", openNewTrip);
@@ -991,9 +1191,12 @@ function renderPlanner() {
 function renderGuide() {
   // The live guide owns its data and status UI. This view remains only as a fallback
   // for a stale hash while the browser navigates to the formal guide entry point.
+  const empty = $("#guideEmpty");
+  const hero = $("#guideHero");
+  if (!empty || !hero) return;
   const trip = activeTrip();
-  $("#guideEmpty").hidden = Boolean(trip);
-  $("#guideHero").innerHTML = trip ? `<div class="guide-card"><div><span class="eyebrow">CURRENT TRIP</span><h2>${escapeHtml(trip.name)}</h2><p>${dateLabel(trip.startDate)} → ${dateLabel(trip.endDate)}</p></div><span class="guide-day">打开导览 ↗</span></div>` : "";
+  empty.hidden = Boolean(trip);
+  hero.innerHTML = trip ? `<div class="guide-card"><div><span class="eyebrow">CURRENT TRIP</span><h2>${escapeHtml(trip.name)}</h2><p>${dateLabel(trip.startDate)} → ${dateLabel(trip.endDate)}</p></div><span class="guide-day">打开导览 ↗</span></div>` : "";
 }
 
 function renderHeader() {
@@ -1014,26 +1217,57 @@ function renderAll() {
 
 async function hydrate() {
   const guest = guestSnapshot();
-  state.countries = (guest.countries || []).map(normalizeSelection);
-  state.activeTripId = guest.activeTripId || null;
-  if (client.user && client.isConfigured()) {
-    try { state.trips = await client.listTrips(); }
-    catch (error) { state.trips = guest.trips || []; showToast(`云端暂不可用：${client.authError(error)}`); }
-    try { state.activeTripId = await client.getActiveTripId(); }
-    catch (error) { state.activeTripId = null; showToast(`当前行程暂不可用：${client.authError(error)}`); }
-  } else state.trips = guest.trips || [];
-  if (client.user && client.isConfigured()) {
-    try { state.countries = (await client.listSelections()).map((row) => normalizeSelection({ ...row, attractionId: row.attraction_id, countryId: row.country_id, visitMode: row.visit_mode, updatedAt: row.updated_at, source: "cloud" })); }
-    catch (error) { showToast(`清单暂不可用：${client.authError(error)}`); }
-  }
+  const [cachedTrips, cachedSelections] = await Promise.all([
+    readCache(scopedCacheKey(cacheKeys.trips)),
+    readCache(scopedCacheKey(cacheKeys.selections))
+  ]);
+  const guestTrips = (guest.trips || []).map((trip) => trip);
+  const guestSelections = (guest.countries || []).map(normalizeSelection);
+  state.trips = Array.isArray(cachedTrips?.items) && cachedTrips.items.length ? cachedTrips.items : guestTrips;
+  state.countries = Array.isArray(cachedSelections?.items) && cachedSelections.items.length
+    ? cachedSelections.items.map(normalizeSelection)
+    : guestSelections;
+  state.activeTripId = cachedTrips?.activeTripId || guest.activeTripId || null;
   state.collection = { status: "idle", tree: [], errors: [], requestId: state.collection.requestId + 1 };
-  await hydrateRecommendations();
   if (!client.user || !client.isConfigured()) {
     if (state.activeTripId && !state.trips.some((trip) => trip.id === state.activeTripId)) state.activeTripId = state.trips[0]?.id || null;
-  } else if (state.activeTripId && !state.trips.some((trip) => trip.id === state.activeTripId)) {
-    state.activeTripId = null;
   }
+  // Paint the shell and any local cache before network work starts.
   renderAll();
+  void hydrateRecommendations();
+  if (!(client.user && client.isConfigured())) return;
+
+  const userId = client.user.id;
+  const refreshRemote = async () => {
+    try {
+      const trips = await client.listTrips();
+      if (client.user?.id !== userId) return;
+      state.trips = trips;
+      void writeCache(scopedCacheKey(cacheKeys.trips), { cachedAt: Date.now(), items: trips, activeTripId: state.activeTripId });
+    } catch (error) {
+      showToast(`云端暂不可用：${client.authError(error)}`);
+    }
+    try {
+      const activeTripId = await client.getActiveTripId();
+      if (client.user?.id !== userId) return;
+      state.activeTripId = activeTripId;
+    } catch (error) {
+      showToast(`当前行程暂不可用：${client.authError(error)}`);
+    }
+    try {
+      const selections = (await client.listSelections()).map((row) => normalizeSelection({ ...row, attractionId: row.attraction_id, countryId: row.country_id, visitMode: row.visit_mode, updatedAt: row.updated_at, source: "cloud" }));
+      if (client.user?.id !== userId) return;
+      state.countries = selections;
+      void writeCache(scopedCacheKey(cacheKeys.selections), { cachedAt: Date.now(), items: selections });
+    } catch (error) {
+      showToast(`清单暂不可用：${client.authError(error)}`);
+    }
+    if (state.activeTripId && !state.trips.some((trip) => trip.id === state.activeTripId)) state.activeTripId = null;
+    state.collection = { status: "idle", tree: [], errors: [], requestId: state.collection.requestId + 1 };
+    renderHeader();
+    if (state.view === "trips") renderLists();
+  };
+  void refreshRemote();
 }
 
 function openNewTrip() {
@@ -1047,6 +1281,7 @@ async function handleNewTrip(event) {
   const trip = { id: makeId(), name: String(data.get("name")).trim(), startDate: String(data.get("startDate") || ""), endDate: String(data.get("endDate") || ""), payload: { note: String(data.get("note") || "").trim() } };
   state.trips = [trip, ...state.trips];
   state.activeTripId = trip.id;
+  void writeCache(scopedCacheKey(cacheKeys.trips), { cachedAt: Date.now(), items: state.trips, activeTripId: state.activeTripId });
   persistGuest();
   if (client.user && client.isConfigured()) {
     try { await client.saveTrip(trip); } catch { showToast("已保存在本机，云端稍后重试"); }
@@ -1061,18 +1296,24 @@ async function handleSelectTrip(id) {
   const previousId = state.activeTripId;
   state.activeTripId = id;
   persistGuest();
+  void writeCache(scopedCacheKey(cacheKeys.trips), { cachedAt: Date.now(), items: state.trips, activeTripId: state.activeTripId });
   renderAll();
   if (client.user && client.isConfigured()) {
     try {
       await client.setActiveTrip(id);
+      reloadExternalView("guide");
       showToast("已切换当前行程");
     } catch (error) {
       state.activeTripId = previousId;
       persistGuest();
+      void writeCache(scopedCacheKey(cacheKeys.trips), { cachedAt: Date.now(), items: state.trips, activeTripId: state.activeTripId });
       renderAll();
       showToast(`切换失败：${client.authError(error)}`);
     }
-  } else showToast("已切换当前行程（游客本机）");
+  } else {
+    reloadExternalView("guide");
+    showToast("已切换当前行程（游客本机）");
+  }
 }
 
 async function handleDeleteTrip(id) {
@@ -1081,6 +1322,7 @@ async function handleDeleteTrip(id) {
   const deletingActiveTrip = state.activeTripId === id;
   state.trips = state.trips.filter((item) => item.id !== id);
   if (deletingActiveTrip) state.activeTripId = client.user && client.isConfigured() ? null : state.trips[0]?.id || null;
+  void writeCache(scopedCacheKey(cacheKeys.trips), { cachedAt: Date.now(), items: state.trips, activeTripId: state.activeTripId });
   persistGuest();
   if (client.user && client.isConfigured()) await client.deleteTrip(id).catch(() => showToast("本机已删除，云端删除稍后重试"));
   renderAll();
@@ -1208,7 +1450,11 @@ function bindEvents() {
     const editTrip = event.target.closest("[data-edit-trip]");
     if (editTrip) {
       const tripId = editTrip.dataset.editTrip;
-      if (tripId) window.location.assign(`${EXTERNAL_VIEWS.planner}?tripId=${encodeURIComponent(tripId)}`);
+      if (tripId) {
+        event.preventDefault();
+        state.pendingExternalRoute = { view: "planner", tripId };
+        setView("planner");
+      }
       return;
     }
     const authOpen = event.target.closest("[data-auth-open]");
@@ -1221,6 +1467,8 @@ function bindEvents() {
     if (remove) handleDeleteTrip(remove.dataset.deleteTrip);
     const recOpen = event.target.closest("[data-rec-open]");
     if (recOpen) openRecommendation(recOpen.dataset.recOpen, recOpen.dataset.id);
+    const mapLoad = event.target.closest("[data-map-load]");
+    if (mapLoad) loadDetailMap(mapLoad);
     const latestCity = event.target.closest("[data-latest-city]");
     if (latestCity) openLatestCity(latestCity.dataset.latestCity);
     const detailStep = event.target.closest("[data-rec-detail-step]");
@@ -1248,13 +1496,13 @@ function bindEvents() {
     if (state.plannerFabOpen) { closePlannerFab(); return; }
     if (!elements.backdrop.hidden) closeModal();
   });
-  $("#newTripButton").addEventListener("click", openNewTrip);
-  $("#exportButton").addEventListener("click", exportData);
-  $("#clearGuestButton").addEventListener("click", clearGuestData);
-  $("#installHelpButton").addEventListener("click", openInstallHelp);
-  $("#installButton").addEventListener("click", openInstallHelp);
-  $("#recommendationBack").addEventListener("click", backRecommendation);
-  $("#recommendationRefresh").addEventListener("click", () => hydrateRecommendations({ refreshLatest: true }));
+  $("#newTripButton")?.addEventListener("click", openNewTrip);
+  $("#exportButton")?.addEventListener("click", exportData);
+  $("#clearGuestButton")?.addEventListener("click", clearGuestData);
+  $("#installHelpButton")?.addEventListener("click", openInstallHelp);
+  $("#installButton")?.addEventListener("click", openInstallHelp);
+  $("#recommendationBack")?.addEventListener("click", backRecommendation);
+  $("#recommendationRefresh")?.addEventListener("click", () => hydrateRecommendations({ refreshLatest: true }));
   $$(".list-tab").forEach((tab) => tab.addEventListener("click", () => { state.listTab = tab.dataset.listTab; renderLists(); }));
   window.addEventListener("online", updateOfflineBanner);
   window.addEventListener("offline", updateOfflineBanner);
@@ -1272,6 +1520,7 @@ async function boot() {
   state.recovery = await client.recoverSessionFromHash();
   await client.initialize();
   await hydrate();
+  if (state.view === "discover") scheduleExternalPrefetch();
   if (state.recovery) authForm("update");
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("../sw.js", { scope: "../" }).catch(() => {});
 }

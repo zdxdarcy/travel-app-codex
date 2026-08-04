@@ -1,9 +1,10 @@
-const CACHE_NAME = "travel-app-shell-v9";
+const CACHE_NAME = "travel-app-shell-v10";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
   "./src/app.js",
+  "./src/idb-cache.js",
   "./src/supabase-client.js",
   "./src/styles.css",
   "./assets/icon-192.png",

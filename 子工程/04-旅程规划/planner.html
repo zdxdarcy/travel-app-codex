@@ -409,8 +409,13 @@
     .topbar,.bottom-nav,.save-fab{display:none!important}.wrap{max-width:none;padding:0 12px}#planArea{padding-bottom:0!important}.daytabs{top:0}.day-carousel{overflow:visible}.day-track{display:block}.day-card{break-inside:avoid}
   }
 </style>
+<style>
+  html.embedded .topbar, html.embedded .bottom-nav { display: none !important; }
+  html.embedded body { padding-bottom: 24px !important; }
+</style>
 </head>
 <body>
+<script>if (new URLSearchParams(location.search).get("embedded") === "1") document.documentElement.classList.add("embedded");</script>
 
 <header class="topbar">
   <div class="topbar-inner">

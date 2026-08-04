@@ -42,6 +42,20 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 
 .main-content { max-width: 1120px; margin: 0 auto; padding: 54px 24px 40px; }
 .view { min-height: calc(100vh - 190px); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.external-view { min-height: calc(100dvh - var(--topbar-height, 64px) - var(--nav-height)); margin: -54px -24px -40px; }
+.external-view-shell { position: relative; min-height: calc(100dvh - var(--topbar-height, 64px) - var(--nav-height)); overflow: hidden; background: var(--paper); }
+.external-view-frame { display: block; width: 100%; height: calc(100dvh - var(--topbar-height, 64px) - var(--nav-height) - env(safe-area-inset-bottom)); min-height: 620px; border: 0; background: var(--paper); }
+.external-view-loading { position: absolute; z-index: 1; inset: 0; display: grid; align-content: start; gap: 14px; padding: 34px max(20px, calc((100% - 720px) / 2)); background: var(--paper); pointer-events: none; }
+.external-view-shell[data-state="ready"] .external-view-loading { display: none; }
+.loading-skeleton, .latest-release-skeleton, .recommendation-skeleton { display: block; border-radius: 6px; background: linear-gradient(90deg, rgba(255,255,255,.16), rgba(255,255,255,.4), rgba(255,255,255,.16)); background-size: 240% 100%; animation: shell-shimmer 1.5s ease-in-out infinite; }
+.loading-skeleton { height: 22px; background: linear-gradient(90deg, #e8eeee, #f8fbfa, #e8eeee); background-size: 240% 100%; }
+.loading-skeleton-wide { width: min(680px, 85%); height: 48px; }
+.loading-skeleton-short { width: min(460px, 60%); }
+.latest-release-skeleton { min-height: 74px; border: 1px solid rgba(255,255,255,.2); }
+.recommendation-skeleton-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.recommendation-skeleton { min-height: 106px; background: linear-gradient(90deg, #edf2ef, #fbfcfa, #edf2ef); }
+@keyframes shell-shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
 .section-heading { display: flex; justify-content: space-between; gap: 24px; align-items: end; margin-bottom: 34px; }
 .compact-heading { margin-bottom: 26px; }
 .eyebrow { margin: 0 0 9px; color: var(--green); font-size: 10px; font-weight: 800; letter-spacing: .16em; }
@@ -144,6 +158,8 @@ h3 { margin-bottom: 7px; font-size: 18px; }
 .enhanced-detail-main, .enhanced-detail-aside { min-width: 0; }
 .enhanced-detail-aside { display: flex; flex-direction: column; gap: 18px; }
 .detail-map-card { background: var(--green-soft); }
+.detail-map-load { display: block; width: 100%; min-height: 160px; border: 0; background: transparent; color: var(--green); cursor: pointer; font-size: 13px; font-weight: 800; }
+.detail-map-load:hover, .detail-map-load:focus-visible { background: rgba(255,255,255,.52); }
 .detail-map-card iframe { display: block; width: 100%; height: 320px; border: 0; }
 .detail-map-card a { display: inline-flex; padding: 10px 12px; color: var(--green); font-size: 12px; font-weight: 800; }
 .detail-reviews-slot:empty { display: none; }
@@ -293,6 +309,8 @@ h3 { margin-bottom: 7px; font-size: 18px; }
 @media (max-width: 620px) {
   .topbar { height: 58px; padding: 0 16px; }
   .main-content { padding: 35px 16px 30px; }
+  .external-view { margin: -35px -16px -30px; }
+  .external-view-frame, .external-view-shell { min-height: calc(100dvh - var(--topbar-height, 58px) - var(--nav-height)); }
   .section-heading { align-items: start; margin-bottom: 27px; }
   .section-heading h1 { font-size: 34px; }
   .heading-index { padding-top: 3px; }
@@ -333,6 +351,7 @@ h3 { margin-bottom: 7px; font-size: 18px; }
 @media (max-width: 390px) {
   .sync-state { display: none; }
   .main-content { padding-right: 13px; padding-left: 13px; }
+  .external-view { margin-right: -13px; margin-left: -13px; }
   .recommendation-detail-deck { margin-right: -13px; margin-left: -13px; width: calc(100% + 26px); }
   .empty-panel .primary-button, .empty-panel .secondary-button { margin-left: 0; }
   .empty-panel .panel-icon { width: 37px; height: 37px; }
