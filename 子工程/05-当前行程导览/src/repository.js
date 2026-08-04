@@ -280,12 +280,16 @@ function buildSnapshot(trip, days, items, bundle) {
         }
       };
     });
-    const logistics = guideItems.filter((item) => item.kind === "logistics");
-    const lodgingItem = logistics.find((item) => item.logistics?.kind === "lodging");
     const metadataAccommodation = normalizeAccommodation(planner.accommodation || dayNotes.accommodation || dayNotes.lodging);
     if (metadataAccommodation && planner.parking) metadataAccommodation.note = [metadataAccommodation.note, planner.parking].filter(Boolean).join(" · ");
+    const logistics = guideItems.filter((item) => item.kind === "logistics");
+    // Some imported plans encode the final hotel stop as a parking logistics item.
+    // When the day also carries accommodation metadata, treat that item as the
+    // accommodation card instead of leaving it in the supplemental timeline.
+    const lodgingItem = logistics.find((item) => item.logistics?.kind === "lodging")
+      || (metadataAccommodation ? logistics.find((item) => item.logistics?.kind === "parking") : null);
     const accommodation = mergeAccommodation(lodgingItem?.logistics, metadataAccommodation);
-    if (lodgingItem && accommodation) lodgingItem.logistics = accommodation;
+    if (lodgingItem && accommodation) lodgingItem.logistics = { ...accommodation, kind: "lodging", label: "住宿" };
     if (accommodation && !lodgingItem) guideItems.push(syntheticAccommodation(day.id, accommodation, planner));
     return {
       id: day.id,

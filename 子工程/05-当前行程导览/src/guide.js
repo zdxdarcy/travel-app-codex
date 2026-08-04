@@ -1,4 +1,4 @@
-import { guideClient, GuideError } from "./repository.js?v=20260810";
+import { guideClient, GuideError } from "./repository.js?v=20260811";
 
 const state = {
   snapshot: null,
@@ -19,7 +19,8 @@ const statusLabels = { not_started: "未开始", completed: "已完成", skipped
 const modeLabels = { inside: "入内", outside: "外部", none: "不安排" };
 
 function isDetailItem(item) {
-  return item?.kind === "place" || item?.kind === "custom" || (item?.kind === "logistics" && item.logistics?.kind === "lodging");
+  const logisticsKind = item?.logistics?.kind;
+  return item?.kind === "place" || item?.kind === "custom" || (item?.kind === "logistics" && ["lodging", "accommodation", "parking"].includes(logisticsKind));
 }
 
 function dateLabel(value, withYear = false) {
