@@ -404,11 +404,10 @@ function syncRecommendationDetailSelection() {
   if (!deck) return;
   const cards = [...deck.querySelectorAll("[data-rec-detail-card]")];
   if (!cards.length) return;
-  const deckLeft = deck.getBoundingClientRect().left;
-  const targetLeft = deckLeft + 1;
+  const targetLeft = deck.scrollLeft;
   const index = cards.reduce((best, card, candidate) => {
-    const bestDistance = Math.abs(cards[best].getBoundingClientRect().left - targetLeft);
-    const candidateDistance = Math.abs(card.getBoundingClientRect().left - targetLeft);
+    const bestDistance = Math.abs(cards[best].offsetLeft - targetLeft);
+    const candidateDistance = Math.abs(card.offsetLeft - targetLeft);
     return candidateDistance < bestDistance ? candidate : best;
   }, 0);
   const item = state.recommendations.items[index];
@@ -444,10 +443,7 @@ function scrollRecommendationDetail(id, { behavior = "smooth" } = {}) {
   const card = document.querySelector(`[data-rec-detail-card="${CSS.escape(id)}"]`);
   if (!card) return;
   const deck = card.closest("[data-rec-detail-deck]");
-  // CSS scroll-margin-top keeps the card below the sticky app bar on both
-  // desktop and mobile while scrollIntoView also handles the horizontal deck.
   const scrollBehavior = behavior === "instant" ? "auto" : behavior;
-  card.scrollIntoView({ behavior: scrollBehavior, block: "nearest", inline: "nearest" });
   if (deck) deck.scrollTo({ left: card.offsetLeft, behavior: scrollBehavior });
   state.recommendations.detailId = id;
   state.recommendations.detail = state.recommendations.items.find((item) => item.id === id) || state.recommendations.detail;
