@@ -1,4 +1,4 @@
-import { guideClient, GuideError } from "./repository.js?v=20260811";
+import { guideClient, GuideError } from "./repository.js?v=20260812";
 
 const state = {
   snapshot: null,
@@ -19,8 +19,10 @@ const statusLabels = { not_started: "未开始", completed: "已完成", skipped
 const modeLabels = { inside: "入内", outside: "外部", none: "不安排" };
 
 function isDetailItem(item) {
-  const logisticsKind = item?.logistics?.kind;
-  return item?.kind === "place" || item?.kind === "custom" || (item?.kind === "logistics" && ["lodging", "accommodation", "parking"].includes(logisticsKind));
+  // Every normalized trip item belongs in the ordered card stream. Keeping a
+  // single predicate here prevents newly introduced logistics/custom kinds
+  // from silently falling into a trailing timeline at the end of the day.
+  return Boolean(item?.id);
 }
 
 function dateLabel(value, withYear = false) {
@@ -196,12 +198,10 @@ function dayView() {
   const selectedId = requestedItemId();
   const selectedIndex = Math.max(0, detailItems.findIndex((item) => item.id === selectedId));
   const chips = detailItems.map((item, index) => `<button type="button" class="attraction-chip ${index === selectedIndex ? "is-active" : ""}" data-detail-chip="${escapeHtml(item.id)}"><span>${index + 1}</span>${escapeHtml(item.details?.name || item.nameSnapshot)}</button>`).join("");
-  const trailingItems = day.items.filter((item) => !isDetailItem(item));
-  const trailingTimeline = trailingItems.length ? `<div class="timeline supplemental-timeline">${trailingItems.map(itemCard).join("")}</div>` : "";
   const content = detailItems.length
-    ? `<nav class="attraction-nav" aria-label="当天安排"><div class="attraction-nav-scroll">${chips}</div></nav><div class="guide-detail-deck" data-detail-deck>${detailItems.map((item, index) => detailItemCard(item, day, index, index === selectedIndex)).join("")}</div>${trailingTimeline}`
-    : `<div class="timeline">${trailingItems.length ? trailingItems.map(itemCard).join("") : '<div class="quiet-panel">这一天还没有安排。</div>'}</div>`;
-  return `<section class="content-section day-view"><div class="day-toolbar"><div><p class="eyebrow">DAY ${String(day.sequence).padStart(2, "0")}</p><h2>${escapeHtml(dateLabel(day.date, true))}</h2><p class="lede">${escapeHtml(day.weekday || "")} · ${escapeHtml(cities)}</p></div><div class="day-progress"><strong>${progress.done}/${progress.total}</strong><span>已处理</span></div></div>${dayMeta(day)}${content}</section>`;
+    ? `<nav class="attraction-nav" aria-label="当天安排"><div class="attraction-nav-scroll">${chips}</div></nav><div class="guide-detail-deck" data-detail-deck>${detailItems.map((item, index) => detailItemCard(item, day, index, index === selectedIndex)).join("")}</div>`
+    : '<div class="quiet-panel">这一天还没有安排。</div>';
+  return `<section class="content-section day-view"><div class="day-toolbar"><div><p class="eyebrow">DAY ${String(day.sequence).padStart(2, "0")}</p><h2>${escapeHtml(dateLabel(day.date, true))}</h2><p class="lede">${escapeHtml(day.weekday || "")} · ${escapeHtml(cities)}</p></div><div class="day-progress"><strong>${progress.done}/${progress.total}</strong><span>已处理</span></div></div>${content}</section>`;
 }
 
 function detailView() {

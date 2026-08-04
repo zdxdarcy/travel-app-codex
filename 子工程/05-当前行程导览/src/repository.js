@@ -146,10 +146,14 @@ function metadataFor(item) {
 }
 
 function itemKind(item) {
-  if (item.item_type === "attraction") return "place";
-  const metadataKind = metadataFor(item).kind;
-  if (["lodging", "transport"].includes(item.item_type) || ["lodging", "accommodation", "parking", "pickup", "dropoff"].includes(metadataKind)) return "logistics";
-  if (item.item_type === "meal") return "meal";
+  const metadata = metadataFor(item);
+  const itemType = String(item.item_type || "").trim().toLowerCase();
+  const semanticKind = String(metadata.kind || metadata.semantic_kind || metadata.item_kind || "").trim().toLowerCase();
+  const logisticsRole = String(metadata.logistics_role || "").trim().toLowerCase();
+  const logisticsKinds = new Set(["lodging", "accommodation", "parking", "transport", "pickup", "dropoff", "start"]);
+  if (itemType === "attraction" || (item.attraction_id && semanticKind === "attraction")) return "place";
+  if (["lodging", "accommodation"].includes(itemType) || logisticsKinds.has(itemType) || logisticsKinds.has(semanticKind) || logisticsKinds.has(logisticsRole)) return "logistics";
+  if (itemType === "meal" || ["meal", "breakfast", "lunch", "dinner"].includes(semanticKind)) return "meal";
   return "custom";
 }
 
@@ -159,7 +163,7 @@ function itemLabel(item, details) {
 
 function mapLogistics(item) {
   const metadata = metadataFor(item);
-  const rawKind = metadata.kind || item.item_type;
+  const rawKind = metadata.logistics_role || metadata.kind || metadata.semantic_kind || metadata.item_kind || item.item_type;
   const kind = rawKind === "accommodation" ? "lodging" : rawKind;
   const labels = { lodging: "住宿", transport: "交通", pickup: "取车", parking: "停车", dropoff: "还车", start: "起点" };
   const parkingNote = metadata.parking || metadata.parking_note || metadata.parkingDescription || null;
