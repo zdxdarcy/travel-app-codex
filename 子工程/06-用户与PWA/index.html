@@ -11,7 +11,7 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="apple-touch-icon" sizes="180x180" href="./assets/apple-touch-icon.png">
   <link rel="icon" href="./assets/icon-192.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./src/styles.css?v=20260807">
+  <link rel="stylesheet" href="./src/styles.css?v=20260809">
   <title>旅程 · 我的旅行</title>
 </head>
 <body>
@@ -37,7 +37,7 @@
           <div>
             <p class="eyebrow">TRAVEL DESK</p>
             <h1 id="discoverTitle">从下一站开始</h1>
-            <p class="lede">浏览地点、保存国家清单，再把想去的地方编成一段可执行的旅程。</p>
+            <p class="lede">浏览城市、保存兴趣景点，再把想去的地方编成一段可执行的旅程。</p>
           </div>
           <span class="heading-index">01</span>
         </div>
@@ -114,14 +114,13 @@
     <div class="planner-fab" id="plannerFab" hidden>
       <div class="planner-fab-menu" id="plannerFabMenu" role="menu" hidden>
         <button class="planner-fab-action" type="button" role="menuitem" data-new-trip>新建行程</button>
-        <button class="planner-fab-action" type="button" role="menuitem" data-go="planner">打开规划</button>
       </div>
       <button class="planner-fab-toggle" type="button" data-fab-toggle aria-label="规划行程" title="规划行程" aria-controls="plannerFabMenu" aria-expanded="false"><span aria-hidden="true">＋</span></button>
     </div>
 
     <nav class="bottom-nav" aria-label="主导航">
       <a href="#discover" class="nav-item is-active" data-nav="discover"><span class="nav-icon" aria-hidden="true">⌖</span><span>发现</span></a>
-      <a href="../04-旅程规划/planner.html" class="nav-item" data-nav="planner"><span class="nav-icon" aria-hidden="true">＋</span><span>规划</span></a>
+      <a href="../04-旅程规划/planner.html?newTrip=1" class="nav-item" data-nav="planner"><span class="nav-icon" aria-hidden="true">＋</span><span>规划</span></a>
       <a href="../05-当前行程导览/guide.html" class="nav-item" data-nav="guide"><span class="nav-icon" aria-hidden="true">◷</span><span>导览</span></a>
       <a href="#trips" class="nav-item" data-nav="trips"><span class="nav-icon" aria-hidden="true">▤</span><span>清单</span></a>
       <a href="#account" class="nav-item" data-nav="account"><span class="nav-icon" aria-hidden="true">○</span><span>我的</span></a>
@@ -137,6 +136,6 @@
 
   <script>window.__TRAVEL_APP_CONFIG__ = { SUPABASE_URL: "https://ogqirzemiceoosfebxgh.supabase.co", SUPABASE_PUBLISHABLE_KEY: "" };</script>
   <script src="./config/runtime-config.js?v=20260802"></script>
-  <script type="module" src="./src/app.js?v=20260808"></script>
+  <script type="module" src="./src/app.js?v=20260809"></script>
 </body>
 </html>

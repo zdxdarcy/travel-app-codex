@@ -153,7 +153,7 @@ function render() {
 }
 
 function emptyView() {
-  return '<section class="empty-panel"><span class="panel-icon" aria-hidden="true">◷</span><div><p class="eyebrow">ON THE ROAD</p><h1>还没有当前行程</h1><p>在规划器中保存行程并设为当前行程后，这里会显示按天导览。</p></div><a class="secondary-button" href="../04-旅程规划/planner.html">打开行程规划</a></section>';
+  return '<section class="empty-panel"><span class="panel-icon" aria-hidden="true">◷</span><div><p class="eyebrow">ON THE ROAD</p><h1>还没有当前行程</h1><p>在规划器中保存行程并设为当前行程后，这里会显示按天导览。</p></div><a class="secondary-button" href="../04-旅程规划/planner.html?newTrip=1">打开行程规划</a></section>';
 }
 
 function tripHeader() {

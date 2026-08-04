@@ -557,7 +557,7 @@
 
 <nav class="bottom-nav" aria-label="主导航">
   <a href="../06-用户与PWA/index.html#discover" class="nav-item"><span class="nav-icon" aria-hidden="true">⌖</span><span>发现</span></a>
-  <a href="planner.html" class="nav-item is-active"><span class="nav-icon" aria-hidden="true">＋</span><span>规划</span></a>
+  <a href="planner.html?newTrip=1" class="nav-item is-active"><span class="nav-icon" aria-hidden="true">＋</span><span>规划</span></a>
   <a href="../06-用户与PWA/index.html#guide" class="nav-item"><span class="nav-icon" aria-hidden="true">◷</span><span>导览</span></a>
   <a href="../06-用户与PWA/index.html#trips" class="nav-item"><span class="nav-icon" aria-hidden="true">▤</span><span>清单</span></a>
   <a href="../06-用户与PWA/index.html#account" class="nav-item"><span class="nav-icon" aria-hidden="true">○</span><span>我的</span></a>
@@ -729,7 +729,10 @@ function normalizeVisitMode(value){ return ["inside","outside","not_planned"].in
 
 /* =========================== 状态 =========================== */
 let editTripId = REQUESTED_TRIP_ID;
-let newTrip = REQUESTED_NEW_TRIP;
+// A planner URL without an explicit tripId is a new-draft entry point. This
+// prevents the generic navigation button from restoring the last local plan;
+// the checklist edit action remains the only path that supplies tripId.
+let newTrip = REQUESTED_NEW_TRIP || !REQUESTED_TRIP_ID;
 let plan = (newTrip || editTripId) ? emptyPlan() : (loadPlan() || emptyPlan());
 let loggedIn = false;
 let confirmedByCity = {};   // ck -> Set(attractionId)  登录后=精选清单
@@ -797,13 +800,34 @@ function daysBetween(a,b){ return Math.round((new Date(b+"T00:00:00")-new Date(a
 function scrollIntoViewSafe(el){ try{ if(el) el.scrollIntoView({behavior:"smooth",block:"start"}); }catch(_){} }
 
 /* =========================== 景点池 / 放置 =========================== */
+function citySelectionSet(city){
+  if(!city) return null;
+  // The cloud list is keyed by the English city name. Keep a few stable
+  // aliases so an imported catalog row whose display name changed slightly
+  // still finds the user's list rather than being treated as empty.
+  const candidates=[city.cityEn, city.city, city.citySlug, city.slug, city.id]
+    .filter(Boolean).map(value=>String(value));
+  for(const value of candidates){
+    const set=confirmedByCity[ckOf(value)] || confirmedByCity[value];
+    if(set instanceof Set) return set;
+  }
+  return null;
+}
+function cityHasPlannerContent(city){
+  const catalogCount=Array.isArray(city?.attractions) ? city.attractions.length : 0;
+  const selected=citySelectionSet(city);
+  return catalogCount>0 || (selected && selected.size>0);
+}
 function getPoolAttractions(city){
-  const key = ckOf(city.cityEn||city.city);
   const attrs = city.attractions || [];
   if(loggedIn){
-    const set = confirmedByCity[key];
-    if(!set) return [];                       // 已登录但该国城市无精选
-    return attrs.filter(a=>set.has(a.id));
+    const set = citySelectionSet(city);
+    // A city can be present in the public catalog before the user has saved
+    // any of its attractions. It must remain usable in the planner; fall
+    // back to the public catalog in that case. Once a city has list entries,
+    // keep the existing personalized filtering semantics.
+    if(!set || !set.size) return attrs;
+    return attrs.filter(a=>set.has(a.id) || set.has(a.slug) || set.has(a.attractionId));
   }
   return attrs;                               // 未登录：展示全部，便于试用
 }
@@ -970,12 +994,16 @@ function renderBaseUnitPicker(){
     ? `${unit.label}包含多个州/区域；选择州/区域后，下面的城市列表只显示该基本单元内的城市。选择国家可保留德国多城市行程。`
     : unit ? `已选择「${unit.label}」，下面的城市列表会按该基本单元筛选。` : "先选基本单元，再为每天添加城市。";
 }
-// 下拉框可选城市：有可选景点（登录后=精选清单非空）且当天尚未选入
+// 下拉框可选城市：公开目录有景点且当天尚未选入；精选清单只影响
+// 选中城市后的景点池，不应让城市本身从规划入口消失。
 function availableCities(dayIdx){
   const day = plan.days[dayIdx];
   if(!day) return [];
   const inDay = new Set(day.cities);
-  return plannerCities().filter(c=>{ return getPoolAttractions(c).length>0 && !inDay.has(c.cityEn||c.city); });
+  // City selection follows the public catalog. A logged-in user's saved
+  // attractions refine the pool after the city is selected, but should not
+  // make an otherwise valid catalog city disappear from this control.
+  return plannerCities().filter(c=>{ return cityHasPlannerContent(c) && !inDay.has(c.cityEn||c.city); });
 }
 function renderCitySelect(){
   const days=plan.days;
@@ -1030,7 +1058,7 @@ function enterPlan(){
   if(!plan.days.length){ showToast("请先填写日期并生成日程"); return; }
   // 计算「有可用景点但未被任何一天选择的城市」
   const trip=new Set(tripCities());
-  const giveUp=plannerCities().filter(c=> getPoolAttractions(c).length>0 && !trip.has(c.cityEn||c.city) && !isExcludedPlace(c.cityEn||c.city));
+  const giveUp=plannerCities().filter(c=> cityHasPlannerContent(c) && !trip.has(c.cityEn||c.city) && !isExcludedPlace(c.cityEn||c.city));
   if(giveUp.length){
     $("giveUpList").innerHTML=giveUp.map(c=>`<span class="giveup-chip">${c.flag} ${escapeHtml(c.city)}</span>`).join("");
     $("giveUpModal").classList.add("open");
