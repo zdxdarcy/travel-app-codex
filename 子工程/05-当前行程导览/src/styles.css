@@ -175,8 +175,8 @@ h3 { font-size: 20px; line-height: 1.25; margin: 0; }
 .attraction-chip[aria-current="true"] { box-shadow: 0 0 0 2px rgba(20,125,119,.13); }
 .attraction-chip.is-active span { background: var(--teal); color: white; }
 .detail-card-heading { align-items: start; display: flex; gap: 16px; justify-content: space-between; }
-.detail-card-heading-main { min-width: 0; }
-.detail-title-row { align-items: start; display: flex; gap: 10px; min-width: 0; }
+.detail-card-heading-main { flex: 1 1 auto; min-width: 0; }
+.detail-title-row { align-items: start; display: flex; gap: 8px; min-width: 0; }
 .detail-card-heading h3 { margin: 0 0 7px; }
 .detail-title-row h3 { min-width: 0; overflow-wrap: anywhere; }
 .map-quick-link { align-items: center; align-self: flex-start; background: transparent; border: 1px solid var(--line); border-radius: 6px; color: var(--teal); display: inline-flex; flex: 0 0 36px; height: 36px; justify-content: center; line-height: 1; margin-left: auto; margin-top: -2px; text-decoration: none; width: 36px; }
