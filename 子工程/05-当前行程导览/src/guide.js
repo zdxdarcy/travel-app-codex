@@ -1,4 +1,4 @@
-import { guideClient, GuideError } from "./repository.js?v=20260815";
+import { guideClient, GuideError } from "./repository.js?v=20260816";
 
 const state = {
   snapshot: null,
@@ -372,10 +372,18 @@ function syncDetailSelection() {
   if (!deck) return;
   const cards = [...deck.querySelectorAll("[data-detail-card]")];
   if (!cards.length) return;
-  const mobile = window.matchMedia("(max-width: 760px)").matches;
+  const horizontal = getComputedStyle(deck).flexDirection === "row";
   let index;
-  if (mobile) {
-    index = Math.max(0, Math.min(cards.length - 1, Math.round(deck.scrollLeft / Math.max(deck.clientWidth, 1))));
+  if (horizontal) {
+    const deckRect = deck.getBoundingClientRect();
+    const center = deckRect.left + deck.clientWidth / 2;
+    index = cards.reduce((best, card, candidate) => {
+      const bestRect = cards[best].getBoundingClientRect();
+      const candidateRect = card.getBoundingClientRect();
+      const bestDistance = Math.abs(bestRect.left + bestRect.width / 2 - center);
+      const candidateDistance = Math.abs(candidateRect.left + candidateRect.width / 2 - center);
+      return candidateDistance < bestDistance ? candidate : best;
+    }, 0);
   } else {
     const line = detailTopOffset() + 18;
     index = cards.reduce((best, card, candidate) => {
@@ -421,18 +429,26 @@ function scrollToDetailCard(card, { behavior = "smooth", updateRoute = true } = 
   if (!card) return;
   const deck = card.closest("[data-detail-deck]");
   if (updateRoute) updateDetailRoute(card.dataset.detailCard);
-  card.scrollIntoView({
-    behavior: behavior === "instant" ? "auto" : behavior,
-    block: "start",
-    inline: "nearest"
-  });
-  if (deck && window.matchMedia("(max-width: 760px)").matches) {
-    deck.scrollTo({ left: card.offsetLeft, behavior: behavior === "instant" ? "auto" : behavior });
+  const horizontal = deck && getComputedStyle(deck).flexDirection === "row";
+  if (horizontal && deck) {
+    const deckRect = deck.getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+    const cardCenter = cardRect.left + cardRect.width / 2;
+    const viewportCenter = deckRect.left + deck.clientWidth / 2;
+    const targetLeft = deck.scrollLeft + (cardCenter - viewportCenter);
+    const maxLeft = Math.max(0, deck.scrollWidth - deck.clientWidth);
+    deck.scrollTo({ left: Math.max(0, Math.min(targetLeft, maxLeft)), behavior: behavior === "instant" ? "auto" : behavior });
+  } else {
+    card.scrollIntoView({
+      behavior: behavior === "instant" ? "auto" : behavior,
+      block: "start",
+      inline: "nearest"
+    });
+    requestAnimationFrame(() => {
+      const correction = card.getBoundingClientRect().top - detailTopOffset();
+      if (Math.abs(correction) > 1) window.scrollBy({ top: correction, behavior: "auto" });
+    });
   }
-  requestAnimationFrame(() => {
-    const correction = card.getBoundingClientRect().top - detailTopOffset();
-    if (Math.abs(correction) > 1) window.scrollBy({ top: correction, behavior: "auto" });
-  });
   requestAnimationFrame(syncDetailSelection);
 }
 

@@ -1535,7 +1535,7 @@ async function boot() {
   await hydrate();
   if (state.view === "discover") scheduleExternalPrefetch();
   if (state.recovery) authForm("update");
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("../sw.js?v=20260815", { scope: "../" }).catch(() => {});
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("../sw.js?v=20260816", { scope: "../" }).catch(() => {});
 }
 
 boot();
