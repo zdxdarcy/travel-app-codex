@@ -247,10 +247,14 @@ function mapTarget(item) {
   return directUrl ? { href: directUrl, query } : query ? { href: guideClient.externalMapUrl(query), query } : null;
 }
 
+function googleMapsIcon() {
+  return '<img class="google-maps-icon" src="../06-用户与PWA/assets/google-maps.svg" alt="" aria-hidden="true">';
+}
+
 function mapQuickLink(item, title) {
   const target = mapTarget(item);
   if (!target) return "";
-  return `<a class="map-quick-link" href="${escapeHtml(target.href)}" target="_blank" rel="noreferrer" aria-label="在地图中打开${escapeHtml(title)}" title="在地图中打开${escapeHtml(title)}"><span aria-hidden="true">⌖</span><span class="sr-only">地图</span></a>`;
+  return `<a class="map-quick-link" href="${escapeHtml(target.href)}" target="_blank" rel="noreferrer" aria-label="在地图中打开${escapeHtml(title)}" title="在地图中打开${escapeHtml(title)}">${googleMapsIcon()}<span class="sr-only">地图</span></a>`;
 }
 
 function mapActions(item, target) {

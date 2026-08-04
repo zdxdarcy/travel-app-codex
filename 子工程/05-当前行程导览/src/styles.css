@@ -181,7 +181,7 @@ h3 { font-size: 20px; line-height: 1.25; margin: 0; }
 .detail-title-row h3 { min-width: 0; overflow-wrap: anywhere; }
 .map-quick-link { align-items: center; align-self: start; background: #f1f6f5; border: 1px solid #c9ddda; color: var(--teal-dark); display: inline-flex; flex: 0 0 36px; height: 36px; justify-content: center; margin-left: auto; text-decoration: none; width: 36px; }
 .map-quick-link:hover, .map-quick-link:focus-visible { background: #e2f0ed; border-color: #91b8b3; }
-.map-quick-link span[aria-hidden="true"] { font-size: 19px; line-height: 1; }
+.google-maps-icon { display: block; flex: 0 0 22px; height: 22px; object-fit: contain; width: 22px; }
 .sr-only { clip: rect(0 0 0 0); clip-path: inset(50%); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }
 .detail-order { align-items: center; background: #e8f0ef; border-radius: 50%; color: var(--teal-dark); display: inline-flex; font-size: 12px; font-weight: 800; height: 28px; justify-content: center; width: 28px; }
 .detail-back { margin-bottom: 13px; }
