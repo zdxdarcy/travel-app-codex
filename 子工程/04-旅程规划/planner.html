@@ -585,9 +585,18 @@ const COUNTRY = "德国";        // 用于导出标题与说明文案
 const COUNTRY_EN = "Germany";  // 英文国名（仅展示）
 const COUNTRY_FLAG = "🇩🇪"; // 顶部国旗 emoji（仅展示）
 
-const CITIES = (window.TAF_CITIES || []);
-const cityByEn = {};
-CITIES.forEach(c => { cityByEn[c.cityEn || c.city] = c; });
+let CITIES = (window.TAF_CITIES || []);
+let cityByEn = {};
+let BASE_UNITS = [];
+let baseUnitByKey = {};
+let catalogSource = "fallback";
+let catalogReady = !SUPABASE_READY;
+function rebuildCatalogIndexes(){
+  cityByEn = {};
+  CITIES.forEach(c => { cityByEn[c.cityEn || c.city] = c; });
+  BASE_UNITS = buildBaseUnits(CITIES);
+  baseUnitByKey = Object.fromEntries(BASE_UNITS.map(unit=>[unit.key,unit]));
+}
 function ckOf(cityEn){ return "taf-sel-" + cityEn; }
 
 function countryKeyOf(city){ return String(city && (city.countryEn || city.country) || COUNTRY_EN); }
@@ -613,8 +622,99 @@ function buildBaseUnits(cities){
   });
   return units;
 }
-const BASE_UNITS = buildBaseUnits(CITIES);
-const baseUnitByKey = Object.fromEntries(BASE_UNITS.map(unit=>[unit.key,unit]));
+function flagForIso(iso){
+  const value=String(iso||"").trim().toUpperCase();
+  if(value.length!==2) return "📍";
+  return String.fromCodePoint(...[...value].map(char=>127397+char.charCodeAt(0)));
+}
+function openingHoursLabel(value){
+  if(!value) return "";
+  if(typeof value === "string") return value;
+  if(Array.isArray(value)) return value.map(item=>openingHoursLabel(item)).filter(Boolean).join("；");
+  if(typeof value === "object"){
+    return Object.entries(value).map(([key,item])=>{
+      const label=String(key).replace(/^mon$/i,"周一").replace(/^tue$/i,"周二").replace(/^wed$/i,"周三").replace(/^thu$/i,"周四").replace(/^fri$/i,"周五").replace(/^sat$/i,"周六").replace(/^sun$/i,"周日");
+      const text=openingHoursLabel(item); return text ? `${label} ${text}` : "";
+    }).filter(Boolean).join("；");
+  }
+  return String(value);
+}
+function catalogCityKey(city){ return String(city?.name_en || city?.slug || city?.name_zh || ""); }
+function catalogAttractionKey(attraction){ return String(attraction?.slug || attraction?.id || ""); }
+function normalizeDatabaseCatalog({regions=[],countries=[],cities=[],attractions=[]}={}){
+  const regionsById=Object.fromEntries(regions.map(row=>[row.id,row]));
+  const countriesById=Object.fromEntries(countries.map(row=>[row.id,row]));
+  const cityRows=cities.filter(city=>city.is_active!==false && countriesById[city.country_id]);
+  const attractionsByCity={};
+  attractions.filter(row=>row.is_active!==false).forEach(row=>{
+    if(!row.city_id || !row.slug || !row.name_zh) return;
+    (attractionsByCity[row.city_id]||(attractionsByCity[row.city_id]=[])).push(row);
+  });
+  return cityRows.map(row=>{
+    const country=countriesById[row.country_id]||{};
+    const region=regionsById[row.region_id]||regionsById[country.region_id]||{};
+    const cityEn=row.name_en||row.slug||row.name_zh;
+    const attractionsForCity=(attractionsByCity[row.id]||[]).map(item=>({
+      id:item.slug,
+      attractionId:item.id,
+      cityId:row.id,
+      slug:item.slug,
+      name:item.name_zh||item.name_en||item.slug,
+      nameEn:item.name_en||item.slug,
+      tag:item.tag||"",
+      duration:item.duration_label||"",
+      hours:openingHoursLabel(item.opening_hours),
+      mapQuery:item.map_query||item.name_en||item.name_zh||`${item.slug} ${cityEn}`,
+      summary:item.summary_zh||"",
+      sourceUrl:item.source_url||""
+    }));
+    return {
+      id:row.id,
+      cityId:row.id,
+      countryId:row.country_id,
+      regionId:row.region_id||country.region_id||"",
+      flag:flagForIso(country.iso_code),
+      country:country.name_zh||country.name_en||COUNTRY,
+      countryEn:country.name_en||country.slug||COUNTRY_EN,
+      city:row.name_zh||row.name_en||row.slug,
+      cityEn,
+      citySlug:row.slug||"",
+      region:region.name_zh||region.name_en||"",
+      regionEn:region.name_en||region.slug||"",
+      attractions:attractionsForCity
+    };
+  });
+}
+function applyCatalog(nextCities, source="fallback"){
+  if(!Array.isArray(nextCities)) return false;
+  CITIES=nextCities;
+  rebuildCatalogIndexes();
+  catalogSource=source;
+  if(typeof plan !== "undefined"){
+    plan.days=(plan.days||[]).map(day=>normalizeDay(day));
+    plan.days.forEach(day=>day.attractions.forEach(item=>{
+      if(item.custom) return;
+      const city=cityByEn[item.city];
+      const slug=item.sourceSlug||item.source_slug||item.id||"";
+      const attraction=city?.attractions?.find(candidate=>candidate.slug===slug||candidate.id===slug||candidate.attractionId===item.attractionId);
+      if(attraction){
+        item.id=attraction.id;
+        item.sourceSlug=attraction.slug||attraction.id;
+        item.attractionId=attraction.attractionId||item.attractionId||"";
+        item.cityId=attraction.cityId||item.cityId||city.cityId||city.id||"";
+        item.name=item.name||attraction.name;
+        item.titleSnapshot=item.titleSnapshot||attraction.name;
+        item.tag=item.tag||attraction.tag||"";
+        item.duration=item.duration||attraction.duration||"";
+        item.hours=item.hours||attraction.hours||"";
+      }
+    }));
+    if(!baseUnitByKey[plan.baseUnit]) plan.baseUnit=BASE_UNITS.length===1 ? BASE_UNITS[0].key : "";
+    syncBaseUnitMeta();
+  }
+  return true;
+}
+rebuildCatalogIndexes();
 function citiesForBaseUnit(unitKey){
   const unit=baseUnitByKey[unitKey];
   if(!unit) return [];
@@ -651,6 +751,7 @@ function normalizeItem(item,index){
     id: item.id || (item.custom ? `custom-${Date.now()}-${index}` : ""),
     order: Number.isInteger(item.order) ? item.order : index,
     city: item.city || "",
+    cityId: item.cityId || item.city_id || "",
     name: item.name || "",
     tag: item.tag || "",
     duration: item.duration || "",
@@ -961,6 +1062,24 @@ function backToCities(){
 }
 
 /* =========================== 默认填充 =========================== */
+function planItemFromAttraction(cityKey, attraction){
+  const city=cityByEn[cityKey];
+  const slug=attraction.slug||attraction.id||"";
+  return {
+    city:cityKey,
+    cityId:attraction.cityId||city?.cityId||city?.id||"",
+    id:attraction.id||slug,
+    attractionId:attraction.attractionId||attraction.attraction_id||"",
+    sourceSlug:slug,
+    sourceNameEn:attraction.nameEn||"",
+    name:attraction.name||attraction.name_zh||attraction.nameEn||slug,
+    titleSnapshot:attraction.name||attraction.name_zh||attraction.nameEn||slug,
+    tag:attraction.tag||"",
+    duration:attraction.duration||attraction.duration_label||"",
+    hours:attraction.hours||"",
+    visitMode:getState(cityKey,slug)||"not_planned"
+  };
+}
 function autoFillDay(d, force){
   const day=plan.days[d];
   if(!force && day.attractions.length) return;   // 已有安排则不覆盖
@@ -971,7 +1090,7 @@ function autoFillDay(d, force){
     if(inPrev || inNext) return;                  // 多天城市不在默认填充范围
     if(isExcludedPlace(cen)) return;              // 排除出发/到达城市
     const city=cityByEn[cen]; if(!city) return;
-    getPoolAttractions(city).forEach(a=>{ if(placedDay(cen,a.id)<0) day.attractions.push({city:cen, id:a.id, sourceSlug:a.id, name:a.name, titleSnapshot:a.name, tag:a.tag, duration:a.duration, hours:a.hours||"", visitMode:getState(cen,a.id)||"not_planned"}); });
+    getPoolAttractions(city).forEach(a=>{ if(placedDay(cen,a.id)<0) day.attractions.push(planItemFromAttraction(cen,a)); });
   });
 }
 function autoFillAll(){ plan.days.forEach((_,d)=>autoFillDay(d,true)); }
@@ -1199,7 +1318,7 @@ function addAttraction(d,cen,id){
   if(placedDay(cen,id)>=0) return false;
   const city=cityByEn[cen]; if(!city) return false;
   const a=city.attractions.find(x=>x.id===id); if(!a) return false;
-  plan.days[d].attractions.push({city:cen, id:a.id, sourceSlug:a.id, name:a.name, titleSnapshot:a.name, tag:a.tag, duration:a.duration, hours:a.hours||"", visitMode:getState(cen,a.id)||"not_planned"});
+  plan.days[d].attractions.push(planItemFromAttraction(cen,a));
   return true;
 }
 // 把住宿/三餐填写内容作为自定义条目加入当天景点列
@@ -1450,8 +1569,14 @@ function resolveCityKey(cityName, metadata={}){
 }
 function coreItemToPlanItem(item){
   const metadata=item.metadata && typeof item.metadata === "object" ? item.metadata : {};
-  const ref=Object.values(catalogByKey).find(value=>value.attractionId===item.attraction_id) || null;
-  const sourceSlug=metadata.source_slug || metadata.source_item_id || ref?.slug || "";
+  const ref=Object.values(catalogByKey).find(value=>value.attractionId===item.attraction_id) ||
+    CITIES.flatMap(city=>(city.attractions||[]).map(attraction=>({
+      ...attraction,
+      cityKey:city.cityEn||city.city,
+      cityName:city.city,
+      cityId:attraction.cityId||city.cityId||city.id||""
+    }))).find(value=>value.attractionId===item.attraction_id) || null;
+  const sourceSlug=metadata.source_slug || metadata.slug || metadata.source_item_id || ref?.slug || "";
   const city=ref?.cityKey || resolveCityKey(item.city_name_snapshot,metadata);
   const catalog=cityByEn[city]?.attractions?.find(attraction=>attraction.id===sourceSlug) || null;
   const itemType=item.item_type||metadata.semantic_kind||metadata.kind||"attraction";
@@ -1470,6 +1595,7 @@ function coreItemToPlanItem(item){
     custom_payload:metadata.payload||{},
     visitMode:normalizeVisitMode(item.visit_mode),
     attractionId:item.attraction_id||"",
+    cityId:metadata.source_city_id||metadata.city_id||ref?.cityId||"",
     sourceListItemId:item.source_list_item_id||"",
     sourceSlug,
     titleSnapshot:item.title_snapshot||"",
@@ -1485,6 +1611,32 @@ const TAF = (function(){
   const GUEST_KEY="taf_guest";
   function initClient(){ if(sb) return; if(!SUPABASE_READY){ console.warn("未注入 SUPABASE_PUBLISHABLE_KEY，仅启用游客/本机模式"); return; } if(!window.supabase||!window.supabase.createClient){ console.warn("Supabase SDK 未加载"); return; }
     sb=window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {auth:{persistSession:true, autoRefreshToken:true, storageKey:"travel-app-auth-v1"}}); }
+  async function loadPublicCatalog(){
+    if(!SUPABASE_READY) return false;
+    initClient();
+    if(!sb) return false;
+    try{
+      const [regionsResult,countriesResult,citiesResult,attractionsResult]=await Promise.all([
+        sb.from("regions").select("id,parent_region_id,region_type,name_zh,name_en,slug,code,is_active").eq("is_active",true),
+        sb.from("countries").select("id,region_id,iso_code,name_zh,name_en,slug,is_active").eq("is_active",true),
+        sb.from("cities").select("id,country_id,region_id,name_zh,name_en,slug,latitude,longitude,is_active").eq("is_active",true),
+        sb.from("attractions").select("id,city_id,slug,name_zh,name_en,tag,summary_zh,duration_label,map_query,opening_hours,source_url,is_active").eq("is_active",true)
+      ]);
+      const resultError=[regionsResult,countriesResult,citiesResult,attractionsResult].find(result=>result.error);
+      if(resultError) throw resultError.error;
+      const regions=regionsResult.data||[], countries=countriesResult.data||[];
+      const activeRegionIds=new Set(regions.map(row=>row.id));
+      const activeCountryIds=new Set(countries.filter(row=>activeRegionIds.has(row.region_id)).map(row=>row.id));
+      const cities=(citiesResult.data||[]).filter(row=>activeCountryIds.has(row.country_id) && (!row.region_id || activeRegionIds.has(row.region_id)));
+      const attractions=(attractionsResult.data||[]).filter(row=>cities.some(city=>city.id===row.city_id));
+      const next=normalizeDatabaseCatalog({regions,countries:countries.filter(row=>activeRegionIds.has(row.region_id)),cities,attractions});
+      applyCatalog(next,"database");
+      return true;
+    }catch(error){
+      console.warn("公开景点目录读取失败，使用 planner-data.js 兜底:",error);
+      return false;
+    }
+  }
   function el(id){ return document.getElementById(id); }
   function openModal(){ const m=el("tafAuthModal"); if(m) m.classList.add("open"); }
   function closeModal(){ const m=el("tafAuthModal"); if(m) m.classList.remove("open"); }
@@ -1519,7 +1671,7 @@ const TAF = (function(){
   function doLogout(){ if(sb) sb.auth.signOut(); session=null; username=null; loggedIn=false; confirmedByCity={}; confirmedStates={}; localStorage.removeItem(GUEST_KEY); renderStatus(); renderPlan(); showToast("已退出登录"); }
   async function loadAll(){
     if(!session) return null; initClient(); if(!sb) return null;
-    const r=await sb.from("user_country_list_items").select("id,attraction_id,visit_mode,attractions(id,slug,city_id,name_zh,name_en,cities(name_zh,name_en))").eq("user_id", session.user.id);
+    const r=await sb.from("user_country_list_items").select("id,attraction_id,visit_mode,attractions(id,slug,city_id,name_zh,name_en,cities(id,name_zh,name_en,slug))").eq("user_id", session.user.id);
     if(r.error){ console.warn("云端读取失败:",r.error); return null; }
     const map={};
     const catalog={};
@@ -1535,6 +1687,7 @@ const TAF = (function(){
         attractionId:attraction.id,
         sourceListItemId:x.id,
         cityId:attraction.city_id,
+        countryId:city.country_id||"",
         cityName:city.name_zh||cityEn,
         name:x.attractions.name_zh||x.attractions.name_en||slug
       };
@@ -1576,12 +1729,15 @@ const TAF = (function(){
   }
   async function boot(){
     renderStatus();
+    await loadPublicCatalog();
+    catalogReady=true;
+    initializePlannerUI();
     const s=await getSession();
     if(s){ session=s; await afterLogin(); }
     else await hydrateEntryTrip(false);
   }
   let tries=0;
-  (function wait(){ if(SUPABASE_READY && window.supabase&&window.supabase.createClient){ initClient(); boot(); } else if(tries++<60){ setTimeout(wait,100); } else { console.warn("Supabase 未配置，仅游客/本机模式"); boot(); } })();
+  (function wait(){ if(!SUPABASE_READY || (window.supabase&&window.supabase.createClient)){ if(SUPABASE_READY) initClient(); boot(); } else if(tries++<60){ setTimeout(wait,100); } else { console.warn("Supabase SDK 未加载，仅游客/本机模式"); boot(); } })();
   return { login:doLogin, signup:doSignup, guest:doGuest, logout:doLogout, open:openModal,
            getSb:()=>sb, getSession:()=>session, getActiveTripId };
 })();
@@ -1596,7 +1752,27 @@ function coreItemType(item){
   if(["breakfast","lunch","dinner"].includes(item.kind)) return "meal";
   return "custom";
 }
-function coreCatalogFor(item){ return catalogByKey[(item.city||"")+"::"+(item.sourceSlug||item.id||"")]||null; }
+function coreCatalogFor(item){
+  return catalogByKey[(item.city||"")+"::"+(item.sourceSlug||item.id||"")]||
+    Object.values(catalogByKey).find(value=>value.attractionId===item.attractionId)||null;
+}
+function catalogRecordFor(item){
+  const direct=coreCatalogFor(item);
+  if(direct) return direct;
+  const city=cityByEn[item.city];
+  const slug=item.sourceSlug||item.id||"";
+  const attraction=city?.attractions?.find(candidate=>candidate.slug===slug||candidate.id===slug||candidate.attractionId===item.attractionId);
+  if(!attraction) return null;
+  return {
+    attractionId:attraction.attractionId||attraction.attraction_id||"",
+    cityId:attraction.cityId||city.cityId||city.id||"",
+    slug:attraction.slug||attraction.id||slug,
+    cityKey:item.city,
+    cityName:city.city,
+    name:attraction.name,
+    nameEn:attraction.nameEn||""
+  };
+}
 function coreTripPayload(){
   return {
     name:(plan.tripName||"未命名行程").trim(),
@@ -1620,12 +1796,15 @@ function coreDayPayload(day,d){
   };
 }
 function coreItemPayload(item, index, dayId){
-  const ref=coreCatalogFor(item), source=sourceAttraction(item);
+  const ref=catalogRecordFor(item), source=sourceAttraction(item);
   const sourceSlug=item.sourceSlug||item.id||"";
   const metadata=item.metadata && typeof item.metadata === "object" ? {...item.metadata} : {};
   const customPayload=item.custom ? {...metadata,kind:item.kind||metadata.kind||"note",payload:item.custom_payload||metadata.payload||{}} : {
     ...metadata,
     source_slug:sourceSlug,
+    slug:ref?.slug||sourceSlug,
+    source_city_id:ref?.cityId||item.cityId||metadata.source_city_id||metadata.city_id||null,
+    city_id:ref?.cityId||item.cityId||metadata.city_id||null,
     source_name_en:item.sourceNameEn||metadata.source_name_en||source?.nameEn||"",
     source_city_name_en:item.city||metadata.source_city_name_en||"",
     tag:item.tag||metadata.tag||source?.tag||"",
@@ -1636,7 +1815,7 @@ function coreItemPayload(item, index, dayId){
   return {
     trip_day_id:dayId,
     item_type:coreItemType(item),
-    attraction_id:ref?.attractionId||item.attractionId||null,
+    attraction_id:isUuid(ref?.attractionId) ? ref.attractionId : (isUuid(item.attractionId) ? item.attractionId : null),
     source_list_item_id:ref?.sourceListItemId||item.sourceListItemId||null,
     title_snapshot:item.titleSnapshot||item.name||"未命名安排",
     city_name_snapshot:item.cityNameSnapshot||ref?.cityName||cityByEn[item.city]?.city||item.city||null,
@@ -1865,27 +2044,32 @@ window.addEventListener("error", function(ev){
     clearTimeout(window.__errT); window.__errT=setTimeout(()=>t.classList.remove("show"),4000); }
 });
 
-document.title = "🧭 旅行行程规划 · " + COUNTRY;
-$("computeBtn").addEventListener("click", computeDays);
-$("resetBtn").addEventListener("click", resetAll);
-$("tripName").addEventListener("input",()=>{ plan.tripName=$("tripName").value.trim(); savePlan(); });
-$("tripNotes").addEventListener("input",()=>{ plan.notes=$("tripNotes").value; savePlan(); });
-$("departLoc").addEventListener("input",()=>{ plan.departLocation=$("departLoc").value.trim(); savePlan(); });
-$("returnLoc").addEventListener("input",()=>{ plan.returnLocation=$("returnLoc").value.trim(); savePlan(); });
-const enterBtn=document.getElementById("enterPlanBtn");
-if(enterBtn) enterBtn.addEventListener("click", enterPlan);
-["giveUpModal","addModal"].forEach(id=>{
-  const m=$(id);
-  if(m) m.addEventListener("click", e=>{ if(e.target===m) m.classList.remove("open"); });
-});
-if(plan.departDate && plan.days.length){
-  fillSetupInputs();
-  if(plan.enteredPlan){ setStep(2); renderPlan(); focusPlanArea(); }
-  else { setStep(1); renderCitySelect(); }
+let plannerUiInitialized=false;
+function initializePlannerUI(){
+  if(plannerUiInitialized) return;
+  plannerUiInitialized=true;
+  document.title = "🧭 旅行行程规划 · " + COUNTRY;
+  $("computeBtn").addEventListener("click", computeDays);
+  $("resetBtn").addEventListener("click", resetAll);
+  $("tripName").addEventListener("input",()=>{ plan.tripName=$("tripName").value.trim(); savePlan(); });
+  $("tripNotes").addEventListener("input",()=>{ plan.notes=$("tripNotes").value; savePlan(); });
+  $("departLoc").addEventListener("input",()=>{ plan.departLocation=$("departLoc").value.trim(); savePlan(); });
+  $("returnLoc").addEventListener("input",()=>{ plan.returnLocation=$("returnLoc").value.trim(); savePlan(); });
+  const enterBtn=document.getElementById("enterPlanBtn");
+  if(enterBtn) enterBtn.addEventListener("click", enterPlan);
+  ["giveUpModal","addModal"].forEach(id=>{
+    const m=$(id);
+    if(m) m.addEventListener("click", e=>{ if(e.target===m) m.classList.remove("open"); });
+  });
+  if(plan.departDate && plan.days.length){
+    fillSetupInputs();
+    if(plan.enteredPlan){ setStep(2); renderPlan(); focusPlanArea(); }
+    else { setStep(1); renderCitySelect(); }
+  }
+  else { setStep(1); fillSetupInputs(); }
+  if(REQUESTED_NEW_TRIP){ updatePlannerUrl({newTrip:true}); }
+  if(REQUESTED_TRIP_ID && !REQUESTED_NEW_TRIP){ hydrateEntryTrip(false); }
 }
-else { setStep(1); fillSetupInputs(); }
-if(REQUESTED_NEW_TRIP){ updatePlannerUrl({newTrip:true}); }
-if(REQUESTED_TRIP_ID && !REQUESTED_NEW_TRIP){ hydrateEntryTrip(false); }
 </script>
 </body>
 </html>
