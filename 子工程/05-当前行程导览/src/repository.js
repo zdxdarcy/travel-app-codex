@@ -202,7 +202,7 @@ function normalizeAccommodation(value) {
   };
 }
 
-function syntheticAccommodation(dayId, accommodation) {
+function syntheticAccommodation(dayId, accommodation, planner = {}) {
   return {
     id: `${dayId}:accommodation`,
     plannedOrder: Number.MAX_SAFE_INTEGER,
@@ -215,8 +215,9 @@ function syntheticAccommodation(dayId, accommodation) {
     logistics: accommodation,
     meal: null,
     metadata: {},
-    displayOnly: true,
-    state: { status: "not_started", actualNote: null, updatedAt: null }
+    synthetic: true,
+    displayOnly: false,
+    state: { status: normalizeStatus(planner.accommodation_status), actualNote: planner.accommodation_note || null, updatedAt: null }
   };
 }
 
@@ -285,7 +286,7 @@ function buildSnapshot(trip, days, items, bundle) {
     if (metadataAccommodation && planner.parking) metadataAccommodation.note = [metadataAccommodation.note, planner.parking].filter(Boolean).join(" · ");
     const accommodation = mergeAccommodation(lodgingItem?.logistics, metadataAccommodation);
     if (lodgingItem && accommodation) lodgingItem.logistics = accommodation;
-    if (accommodation && !lodgingItem) guideItems.push(syntheticAccommodation(day.id, accommodation));
+    if (accommodation && !lodgingItem) guideItems.push(syntheticAccommodation(day.id, accommodation, planner));
     return {
       id: day.id,
       sequence: day.day_number,
@@ -296,6 +297,7 @@ function buildSnapshot(trip, days, items, bundle) {
       accommodation,
       meals: planner.meals || {},
       notes: dayNotes.text || dayNotes.note || null,
+      plannerNotes: dayNotes,
       items: guideItems
     };
   });
@@ -339,7 +341,8 @@ export async function loadActiveGuide() {
 }
 
 export async function updateItem(itemId, patch, snapshot) {
-  const belongsToSnapshot = snapshot?.days.some((day) => day.items.some((item) => item.id === itemId));
+  const ownerDay = snapshot?.days.find((day) => day.items.some((item) => item.id === itemId));
+  const belongsToSnapshot = Boolean(ownerDay);
   if (!belongsToSnapshot) throw new GuideError("STATE_CONFLICT", "项目已不属于当前行程，请刷新后重试。");
   const safePatch = {};
   if (Object.hasOwn(patch, "status")) {
@@ -347,6 +350,21 @@ export async function updateItem(itemId, patch, snapshot) {
     safePatch.visit_status = patch.status;
   }
   if (Object.hasOwn(patch, "actualNote")) safePatch.notes = String(patch.actualNote || "").trim() || null;
+  const ownerItem = ownerDay.items.find((item) => item.id === itemId);
+  if (ownerItem?.synthetic) {
+    const source = ownerDay.plannerNotes && typeof ownerDay.plannerNotes === "object" ? ownerDay.plannerNotes : {};
+    const planner = { ...(source.planner && typeof source.planner === "object" ? source.planner : {}) };
+    if (Object.hasOwn(safePatch, "visit_status")) planner.accommodation_status = safePatch.visit_status;
+    if (Object.hasOwn(safePatch, "notes")) planner.accommodation_note = safePatch.notes;
+    const notes = JSON.stringify({ ...source, planner });
+    const rows = await rest(`trip_days?select=id&id=eq.${queryValue(ownerDay.id)}`, { method: "PATCH", body: JSON.stringify({ notes }) });
+    if (!rows?.[0]) throw new GuideError("STATE_CONFLICT", "住宿没有返回更新结果，请刷新后重试。");
+    return {
+      status: normalizeStatus(planner.accommodation_status),
+      actualNote: planner.accommodation_note || null,
+      updatedAt: rows[0].updated_at || null
+    };
+  }
   const rows = await rest(`trip_items?select=${ITEM_FIELDS}&id=eq.${queryValue(itemId)}`, { method: "PATCH", body: JSON.stringify(safePatch) });
   const row = rows?.[0];
   if (!row) throw new GuideError("STATE_CONFLICT", "项目没有返回更新结果，请刷新后重试。");

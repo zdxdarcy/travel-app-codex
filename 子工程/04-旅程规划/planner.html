@@ -312,7 +312,7 @@
   .daytab.active{background:var(--teal);color:#fff}
   .daytabs .spacer{min-width:12px}
   .day-region{scroll-margin-top:calc(64px + 12px)}
-  .day-carousel{width:100%;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scrollbar-width:thin;-webkit-overflow-scrolling:touch;touch-action:pan-x;}
+  .day-carousel{width:100%;overflow-x:auto;overflow-y:visible;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scrollbar-width:thin;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;}
   .day-track{display:flex;align-items:flex-start;width:100%}
   .day-card{flex:0 0 100%;width:100%;min-width:0;overflow:hidden;margin:0;padding:18px;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);scroll-snap-align:start;scroll-snap-stop:always}
   .day-head{gap:10px;padding-bottom:11px;margin-bottom:13px;border-bottom:1px solid var(--line)}
@@ -321,7 +321,6 @@
   .day-start{margin-bottom:7px;color:var(--teal-dark);font-size:12px;font-weight:800}
   .day-cities{margin-bottom:12px;font-size:12px;color:var(--muted)}
   .day-cities b{color:var(--ink)}
-  .day-notes{margin:0 0 12px}.day-notes label{display:block;margin-bottom:4px;color:var(--muted);font-size:11px;font-weight:800}.day-notes textarea{width:100%;min-height:48px;padding:8px 9px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);font:inherit;font-size:12px;resize:vertical}.day-notes textarea:focus{border-color:var(--teal);outline:2px solid rgba(23,107,91,.12)}
   .attr-toolbar{gap:7px;margin-bottom:9px}
   .attr-toolbar .custom-input,.attr-toolbar .custom-tag{padding:8px 9px;font-size:12px}
   .attr-toolbar .custom-tag{flex-basis:96px}
@@ -372,10 +371,12 @@
   .taf-btn.ghost:hover{border-color:#91b8b3;background:var(--teal-soft)}
   .toast{bottom:calc(var(--nav-height) + 14px + env(safe-area-inset-bottom));max-width:calc(100vw - 32px);border-radius:6px;background:var(--ink);padding:10px 14px;font-size:12px}
   .trip-row{gap:8px;padding:11px 0}.trip-title{font-size:13px}.trip-sub{font-size:11px}.trip-acts{gap:5px}
-  .bottom-nav{position:fixed;z-index:110;right:0;bottom:0;left:0;height:calc(var(--nav-height) + env(safe-area-inset-bottom));display:grid;grid-template-columns:repeat(5,1fr);padding:8px max(10px,calc((100vw - 650px)/2)) env(safe-area-inset-bottom);border-top:1px solid var(--line);background:rgba(255,255,255,.96);backdrop-filter:blur(15px)}
+  .bottom-nav{position:fixed;z-index:110;right:0;bottom:0;left:0;height:var(--nav-height);display:grid;grid-template-columns:repeat(5,1fr);padding:8px max(10px,calc((100vw - 650px)/2)) env(safe-area-inset-bottom);border-top:1px solid var(--line);background:rgba(255,255,255,.96);backdrop-filter:blur(15px)}
   .nav-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;min-width:0;color:#879096;font-size:10px;font-weight:700;text-decoration:none}
   .nav-icon{display:flex;align-items:center;justify-content:center;width:28px;height:25px;border-radius:8px;font-size:20px;line-height:1}
   .nav-item.is-active{color:var(--teal)}.nav-item.is-active .nav-icon{background:var(--teal-soft)}
+  .topbar-account{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border:0;border-radius:10px;background:transparent;color:var(--muted);font-size:20px;line-height:1;text-decoration:none}
+  .topbar-account:hover,.topbar-account:focus-visible{background:var(--teal-soft);color:var(--teal)}
   .plan-exports{margin-top:18px;padding:16px;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow)}
   .plan-exports-title{margin:0 0 8px;font-size:13px;font-weight:800;color:var(--ink)}
   .plan-exports .export-bar{margin-left:0}
@@ -385,7 +386,7 @@
   .save-fab .save-icon{width:23px;height:23px;display:block;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
   #planArea{padding-bottom:calc(var(--nav-height) + 112px + env(safe-area-inset-bottom)) !important}
   @media (max-width:620px){
-    .topbar{height:58px;padding:0 16px}.topbar-context{display:none}.topbar-back,.planner-auth-button{padding:6px 8px;font-size:11px}
+    .topbar{height:58px;padding:0 16px}.topbar-context{display:none}
     .wrap{padding-right:16px;padding-left:16px}.stepper{gap:18px;margin-top:20px}.step{font-size:11px}
     .setup,#citySelectArea{padding:17px 16px;margin-bottom:16px}.setup h2{font-size:15px}.grid4{grid-template-columns:1fr;gap:11px}
     .base-unit-picker{grid-template-columns:1fr;gap:6px;margin-top:12px}.base-unit-hint{grid-column:auto}
@@ -417,9 +418,7 @@
       <span>旅程</span>
     </a>
     <div class="topbar-actions">
-      <span class="topbar-context">PLANNER <b>02</b></span>
-      <button class="planner-auth-button" id="plannerAuthButton" type="button" onclick="openAuth()">登录</button>
-      <a class="topbar-back" href="../06-用户与PWA/index.html">返回 App</a>
+      <a class="topbar-account" id="plannerAccountButton" href="../06-用户与PWA/index.html#account" aria-label="我的" title="我的">○</a>
     </div>
   </div>
 </header>
@@ -1072,7 +1071,7 @@ function attrItem(a,d,idx){
   const cen=a.city, city=cityByEn[cen], cityLabel=city?(city.flag+" "+city.city):(a.cityNameSnapshot||cen||"自定义安排");
   const checked = selSet.has(cen+"::"+a.id)?"checked":"";
   const dayOpts = plan.days.map((_,i)=> i).filter(i=>i!==d).map(i=>`<option value="${i}">第${i+1}天</option>`).join("");
-  const badge = isCustom ? `<input type="text" class="vt-custom-edit" value="${escapeHtml(a.tag||"自定义")}" data-day="${d}" data-idx="${idx}" oninput="setCustomTag(${d},${idx},this.value)" title="点击修改标签">` : stateBadge(cen,a.id,a.visitMode);
+  const badge = isCustom ? `<input type="text" class="vt-custom-edit" value="${escapeHtml(a.tag||"自定义")}" data-day="${d}" data-idx="${idx}" oninput="setCustomTag(${d},${idx},this.value)" title="点击修改标签">` : "";
   const cityLine = isCustom
     ? `<div class="attr-city">🗒 自定义安排</div>`
     : `<div class="attr-city">${escapeHtml(cityLabel)}</div>`;
@@ -1101,7 +1100,7 @@ function timelineHtml(d){
       html+=`<div class="tl-city">${city?(city.flag+" "+escapeHtml(city.city)):escapeHtml(cen)}</div>`;
       lastCity=cen;
     }
-    html+=`<div class="tl-attr">${stateBadge(cen,a.id,a.visitMode)}${escapeHtml(a.name)}</div>`;
+    html+=`<div class="tl-attr">${escapeHtml(a.name)}</div>`;
   });
   const acc=plan.days[d].accommodation||"";
   html+=`<div class="tl-item tl-end">🏨 住宿：${escapeHtml(acc)||"（住宿未填）"}</div>`;
@@ -1122,7 +1121,6 @@ function renderDays(){
         `<button class="btn ghost sm day-auto" onclick="autoFillDayBtn(${d})">自动填充</button></div>`+
         `<div class="day-start">🚩 起点：${escapeHtml(startOfDay(d))}${d>0?'（= 前一日住宿）':''}</div>`+
         `<div class="day-cities">🏙 本日城市：<b>${cityLabel}</b></div>`+
-        `<div class="day-notes"><label for="day-notes-${d}">当日备注</label><textarea id="day-notes-${d}" data-day="${d}" data-field="notes" placeholder="记录预约、节奏或现场提醒">${escapeHtml(day.notes||"")}</textarea></div>`+
         `<div class="attr-toolbar"><button class="btn ghost sm" onclick="openAddModal(${d})">➕ 添加景点</button>`+
           `<input type="text" class="custom-input" id="customInp-${d}" placeholder="自定义条目，如：买纪念品 / 机场接机" onkeydown="if(event.key==='Enter')addCustom(${d})">`+
           `<input type="text" class="custom-tag" id="customTag-${d}" placeholder="标签(可选)" onkeydown="if(event.key==='Enter')addCustom(${d})">`+
@@ -1329,7 +1327,6 @@ function buildExportText(){
     L.push(`第${d+1}天（${fmtDate(addDays(plan.departDate,d))}）`);
     L.push(`  起点：${startOfDay(d)}`);
     L.push(`  城市：${day.cities.map(c=> cityByEn[c]?cityByEn[c].city:c).join("、")||"（未选）"}`);
-    if(day.notes) L.push(`  备注：${day.notes}`);
     let lastCity=null;
     day.attractions.forEach(a=>{
       if(a.custom){
@@ -1571,10 +1568,11 @@ const TAF = (function(){
     showToast(cnt ? `已从云端同步 ${cnt} 座城市的精选景点 ✓` : "已登录，但未找到精选景点（将显示全部）");
   }
   function renderStatus(){
-    const slot=el("plannerAuthButton");
+    const slot=el("plannerAccountButton");
     if(!slot) return;
-    slot.textContent=session ? `👤 ${username||"账户"}` : localStorage.getItem(GUEST_KEY) ? "🚶 游客" : "登录";
-    slot.setAttribute("aria-label", session ? `已登录：${username||"账户"}` : "登录或注册");
+    const label=session ? `我的：${username||"账户"}` : localStorage.getItem(GUEST_KEY) ? "我的：游客模式" : "我的";
+    slot.setAttribute("aria-label", label);
+    slot.setAttribute("title", label);
   }
   async function boot(){
     renderStatus();
@@ -1616,7 +1614,7 @@ function coreDayPayload(day,d){
     day_number:d+1,
     day_date:day.date||plan.departDate,
     notes:JSON.stringify({
-      text:day.notes||"",
+      text:"",
       planner:{cities:day.cities||[], accommodation:day.accommodation||"", transport:day.transport||"", meals:day.meals||{}}
     })
   };

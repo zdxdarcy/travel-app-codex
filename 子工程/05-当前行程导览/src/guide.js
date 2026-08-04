@@ -18,6 +18,10 @@ const escapeHtml = (value) => String(value ?? "").replace(/[&<>'"]/g, (char) => 
 const statusLabels = { not_started: "未开始", completed: "已完成", skipped: "已跳过" };
 const modeLabels = { inside: "入内", outside: "外部", none: "不安排" };
 
+function isDetailItem(item) {
+  return item?.kind === "place" || item?.kind === "custom" || (item?.kind === "logistics" && item.logistics?.kind === "lodging");
+}
+
 function dateLabel(value, withYear = false) {
   if (!value) return "日期待定";
   return new Intl.DateTimeFormat("zh-CN", withYear ? { year: "numeric", month: "long", day: "numeric" } : { month: "short", day: "numeric" }).format(new Date(`${value}T00:00:00`));
@@ -68,11 +72,11 @@ function routeFromLocation() {
   const dayId = params.get("dayId");
   const itemId = requestedItemId();
   const validDay = state.snapshot?.days.find((day) => day.id === dayId);
-  const itemDay = itemId ? state.snapshot?.days.find((day) => day.items.some((item) => item.kind === "place" && item.id === itemId)) : null;
+  const itemDay = itemId ? state.snapshot?.days.find((day) => day.items.some((item) => isDetailItem(item) && item.id === itemId)) : null;
   const activeDay = validDay || itemDay;
   if (activeDay) {
     state.selectedDayId = activeDay.id;
-    const validItem = activeDay.items.find((item) => item.kind === "place" && item.id === itemId);
+    const validItem = activeDay.items.find((item) => isDetailItem(item) && item.id === itemId);
     state.view = validItem ? "detail" : "day";
     if (!validItem && itemId) {
       params.delete("itemId");
@@ -187,16 +191,14 @@ function dayView() {
   if (!day) return '<section class="empty-panel"><h1>行程暂无日程</h1></section>';
   const progress = progressFor(day);
   const cities = day.cities.map((city) => city.name).join(" · ") || "城市待定";
-  const places = day.items.filter((item) => item.kind === "place");
+  const detailItems = day.items.filter(isDetailItem);
   const selectedId = requestedItemId();
-  const selectedIndex = Math.max(0, places.findIndex((item) => item.id === selectedId));
-  const chips = places.map((item, index) => `<button type="button" class="attraction-chip ${index === selectedIndex ? "is-active" : ""}" data-detail-chip="${escapeHtml(item.id)}"><span>${index + 1}</span>${escapeHtml(item.details?.name || item.nameSnapshot)}</button>`).join("");
-  const lodging = day.items.filter((item) => item.kind === "logistics" && item.logistics?.kind === "lodging");
-  const otherItems = day.items.filter((item) => item.kind !== "place" && !(item.kind === "logistics" && item.logistics?.kind === "lodging"));
-  const trailingItems = [...otherItems, ...lodging];
+  const selectedIndex = Math.max(0, detailItems.findIndex((item) => item.id === selectedId));
+  const chips = detailItems.map((item, index) => `<button type="button" class="attraction-chip ${index === selectedIndex ? "is-active" : ""}" data-detail-chip="${escapeHtml(item.id)}"><span>${index + 1}</span>${escapeHtml(item.details?.name || item.nameSnapshot)}</button>`).join("");
+  const trailingItems = day.items.filter((item) => !isDetailItem(item));
   const trailingTimeline = trailingItems.length ? `<div class="timeline supplemental-timeline">${trailingItems.map(itemCard).join("")}</div>` : "";
-  const content = places.length
-    ? `<nav class="attraction-nav" aria-label="当天景点"><div class="attraction-nav-scroll">${chips}</div></nav><div class="guide-detail-deck" data-detail-deck>${places.map((item, index) => detailItemCard(item, day, index, index === selectedIndex)).join("")}</div>${trailingTimeline}`
+  const content = detailItems.length
+    ? `<nav class="attraction-nav" aria-label="当天安排"><div class="attraction-nav-scroll">${chips}</div></nav><div class="guide-detail-deck" data-detail-deck>${detailItems.map((item, index) => detailItemCard(item, day, index, index === selectedIndex)).join("")}</div>${trailingTimeline}`
     : `<div class="timeline">${trailingItems.length ? trailingItems.map(itemCard).join("") : '<div class="quiet-panel">这一天还没有安排。</div>'}</div>`;
   return `<section class="content-section day-view"><div class="day-toolbar"><div><p class="eyebrow">DAY ${String(day.sequence).padStart(2, "0")}</p><h2>${escapeHtml(dateLabel(day.date, true))}</h2><p class="lede">${escapeHtml(day.weekday || "")} · ${escapeHtml(cities)}</p></div><div class="day-progress"><strong>${progress.done}/${progress.total}</strong><span>已处理</span></div></div>${dayMeta(day)}${content}</section>`;
 }
@@ -273,11 +275,12 @@ function itemCard(item) {
 }
 
 function detailItemCard(item, day, index, selected) {
+  const isPlace = item.kind === "place";
   const title = item.details?.name || item.nameSnapshot;
   const location = item.cityName ? `<span class="item-city">${escapeHtml(item.cityName)}</span>` : "";
-  const plan = `<span class="mode-chip mode-${item.visitMode}">计划 · ${modeLabels[item.visitMode]}</span>`;
-  const missing = !item.details ? '<p class="missing-note">目录资料暂不可用，仍保留行程中的名称和地图入口。</p>' : "";
-  const details = item.details ? detailPlaceDetails(item.details) : missing;
+  const plan = isPlace ? `<span class="mode-chip mode-${item.visitMode}">计划 · ${modeLabels[item.visitMode]}</span>` : `<span class="mode-chip mode-neutral">${escapeHtml(item.logistics?.label || item.meal?.mealType || "自定义安排")}</span>`;
+  const missing = isPlace && !item.details ? '<p class="missing-note">目录资料暂不可用，仍保留行程中的名称和地图入口。</p>' : "";
+  const details = isPlace ? (item.details ? detailPlaceDetails(item.details) : missing) : logisticsDetails(item);
   const target = mapTarget(item);
   const actions = mapActions(item, target);
   const titleRow = `<div class="detail-title-row"><h3>${escapeHtml(title)}</h3>${mapQuickLink(item, title)}</div>`;
