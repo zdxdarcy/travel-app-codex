@@ -319,7 +319,7 @@ function detailNavigation() {
   if (index < 0 || rec.items.length < 2) return "";
   const previous = rec.items[index - 1];
   const next = rec.items[index + 1];
-  return `<div class="detail-navigation" aria-label="切换景点"><button class="detail-nav-button" type="button" data-rec-detail-step="-1" aria-label="上一个景点" title="上一个景点" ${previous ? "" : "disabled"}>‹</button><span>${index + 1} / ${rec.items.length}</span><button class="detail-nav-button" type="button" data-rec-detail-step="1" aria-label="下一个景点" title="下一个景点" ${next ? "" : "disabled"}>›</button></div>`;
+  return `<div class="detail-navigation" aria-label="切换景点"><button class="detail-nav-button" type="button" data-rec-detail-step="-1" aria-label="上一个景点" title="上一个景点" ${previous ? "" : "disabled"}>‹</button><span data-rec-detail-counter>${index + 1} / ${rec.items.length}</span><button class="detail-nav-button" type="button" data-rec-detail-step="1" aria-label="下一个景点" title="下一个景点" ${next ? "" : "disabled"}>›</button></div>`;
 }
 
 function catalogText(value) {
@@ -352,8 +352,27 @@ function mapTarget(item) {
   return { query: coordinateQuery, url: mapUrl(coordinateQuery) };
 }
 
+function googleMapsIcon() {
+  return '<img class="google-maps-icon" src="./assets/google-maps.svg" alt="" aria-hidden="true">';
+}
+
+function mediaUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  try {
+    const url = new URL(raw, location.href);
+    return /^https?:$/.test(url.protocol) ? url.toString() : "";
+  } catch {
+    return "";
+  }
+}
+
 function detailGallery(item, detail) {
-  if (detail?.media?.length) return `<div class="detail-gallery">${detail.media.map((photo) => `<img src="${escapeHtml(photo.url)}" alt="${escapeHtml(photo.alt_text || item.name_zh)}" loading="lazy">`).join("")}</div>`;
+  const media = (Array.isArray(detail?.media) ? detail.media : [])
+    .map((photo) => ({ ...photo, url: mediaUrl(photo?.url) }))
+    .filter((photo) => photo?.media_type === "image" && photo.url)
+    .slice(0, 6);
+  if (media.length) return `<div class="detail-gallery">${media.map((photo, index) => `<div class="detail-gallery-item"><img src="${escapeHtml(photo.url)}" alt="${escapeHtml(photo.alt_text || item.name_zh)}" loading="${index === 0 ? "eager" : "lazy"}" decoding="async" onerror="this.parentElement.classList.add('is-broken');this.remove()"><span class="detail-image-fallback" aria-hidden="true">图片暂不可用</span></div>`).join("")}</div>`;
   return `<div class="detail-media-placeholder" aria-hidden="true"></div>`;
 }
 
@@ -370,24 +389,95 @@ function recommendationDetailCard(item, index) {
   const mode = selectionMode(item.id);
   const map = mapTarget(item);
   const facts = `<div class="detail-facts"><span>建议时长<strong>${escapeHtml(item.duration_label || "暂无")}</strong></span><span>评分<strong>${item.rating != null ? `${escapeHtml(item.rating)} / 5` : "暂无"}</strong></span><span>评价<strong>${item.review_count != null ? escapeHtml(item.review_count) : "暂无"}</strong></span></div><div class="detail-facts detail-copy"><span>开放时间<strong>${escapeHtml(catalogText(item.opening_hours))}</strong></span><span>票价<strong>${escapeHtml(catalogText(item.ticket_info))}</strong></span></div>`;
-  return `<article class="attraction-detail-card ${item.id === rec.detailId ? "is-selected" : ""}" data-rec-detail-card="${escapeHtml(item.id)}"><header class="detail-heading"><div class="detail-heading-copy"><span class="eyebrow">${escapeHtml(item.tag || "景点详情")}</span><div class="detail-title-line"><h2>${escapeHtml(item.name_zh)}</h2>${map ? `<a class="detail-map-shortcut" href="${map.url}" target="_blank" rel="noreferrer" aria-label="在地图中打开 ${escapeHtml(item.name_zh)}" title="打开地图"><span aria-hidden="true">⌖</span></a>` : ""}</div><p>${escapeHtml(item.name_en || "")}</p></div><button class="visit-mode mode-${mode}" type="button" data-rec-visit="${escapeHtml(item.id)}" aria-pressed="${mode !== "none"}">${{ inside: "入内参观", outside: "外部参观", none: "未安排" }[mode]}</button></header><div class="enhanced-detail-layout"><div class="enhanced-detail-main"><p class="detail-intro">${escapeHtml(item.description_zh || item.summary_zh || "暂无介绍")}</p><div data-detail-gallery>${detailGallery(item, detail)}</div>${facts}<p class="detail-note">${escapeHtml(item.visit_notes || "")}</p></div><aside class="enhanced-detail-aside">${map ? `<div class="detail-map-card"><iframe title="${escapeHtml(item.name_zh)} 地图" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://www.google.com/maps?q=${encodeURIComponent(map.query)}&output=embed"></iframe><a href="${map.url}" target="_blank" rel="noreferrer">在地图中查看 ↗</a></div>` : ""}${detailReviews(detail)}</aside></div></article>`;
+  return `<article class="attraction-detail-card ${item.id === rec.detailId ? "is-selected" : ""}" data-rec-detail-card="${escapeHtml(item.id)}"><header class="detail-heading"><div class="detail-heading-copy"><span class="eyebrow">${escapeHtml(item.tag || "景点详情")}</span><div class="detail-title-line"><h2>${escapeHtml(item.name_zh)}</h2>${map ? `<a class="detail-map-shortcut" href="${map.url}" target="_blank" rel="noreferrer" aria-label="在地图中打开 ${escapeHtml(item.name_zh)}" title="打开地图">${googleMapsIcon()}</a>` : ""}</div><p>${escapeHtml(item.name_en || "")}</p></div><button class="visit-mode mode-${mode}" type="button" data-rec-visit="${escapeHtml(item.id)}" aria-pressed="${mode !== "none"}">${{ inside: "入内参观", outside: "外部参观", none: "未安排" }[mode]}</button></header><div class="enhanced-detail-layout"><div class="enhanced-detail-main"><p class="detail-intro">${escapeHtml(item.description_zh || item.summary_zh || "暂无介绍")}</p><div data-detail-gallery>${detailGallery(item, detail)}</div>${facts}<p class="detail-note">${escapeHtml(item.visit_notes || "")}</p></div><aside class="enhanced-detail-aside">${map ? `<div class="detail-map-card"><iframe title="${escapeHtml(item.name_zh)} 地图" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://www.google.com/maps?q=${encodeURIComponent(map.query)}&output=embed"></iframe><a href="${map.url}" target="_blank" rel="noreferrer">在地图中查看 ↗</a></div>` : ""}${detailReviews(detail)}</aside></div></article>`;
 }
 
 function renderRecommendationDetailDeck() {
   const rec = state.recommendations;
   const city = rec.city;
   const chips = rec.items.map((item) => `<button class="detail-chip ${item.id === rec.detailId ? "is-active" : ""}" type="button" data-rec-detail-chip="${escapeHtml(item.id)}">${escapeHtml(item.name_zh)}</button>`).join("");
-  return `<article class="city-attraction-view"><button class="text-button small" type="button" data-rec-back>← 返回 ${escapeHtml(city?.name_zh || "景点目录")}</button><header class="city-attraction-heading"><div><p class="eyebrow">ATTRACTION GUIDE</p><h2>${escapeHtml(city?.name_zh || "城市")}</h2><p>${escapeHtml(city?.name_en || "")}</p></div><span class="recommendation-city-count">${rec.items.length} 个景点</span></header><nav class="detail-chip-bar" aria-label="选择景点">${chips}</nav><div class="recommendation-detail-deck" data-rec-detail-deck>${rec.items.map(recommendationDetailCard).join("")}</div></article>`;
+  return `<article class="city-attraction-view"><button class="text-button small" type="button" data-rec-back>← 返回 ${escapeHtml(city?.name_zh || "景点目录")}</button><header class="city-attraction-heading"><div><p class="eyebrow">ATTRACTION GUIDE</p><h2>${escapeHtml(city?.name_zh || "城市")}</h2><p>${escapeHtml(city?.name_en || "")}</p></div><span class="recommendation-city-count">${rec.items.length} 个景点</span></header><nav class="detail-chip-bar" aria-label="选择景点">${chips}</nav>${detailNavigation()}<div class="recommendation-detail-deck" data-rec-detail-deck>${rec.items.map(recommendationDetailCard).join("")}</div></article>`;
 }
 
-function scrollRecommendationDetail(id) {
+function syncRecommendationDetailSelection() {
+  const deck = document.querySelector("[data-rec-detail-deck]");
+  if (!deck) return;
+  const cards = [...deck.querySelectorAll("[data-rec-detail-card]")];
+  if (!cards.length) return;
+  const deckLeft = deck.getBoundingClientRect().left;
+  const targetLeft = deckLeft + 1;
+  const index = cards.reduce((best, card, candidate) => {
+    const bestDistance = Math.abs(cards[best].getBoundingClientRect().left - targetLeft);
+    const candidateDistance = Math.abs(card.getBoundingClientRect().left - targetLeft);
+    return candidateDistance < bestDistance ? candidate : best;
+  }, 0);
+  const item = state.recommendations.items[index];
+  if (!item) return;
+  state.recommendations.detailId = item.id;
+  state.recommendations.detail = item;
+  cards.forEach((card, cardIndex) => card.classList.toggle("is-selected", cardIndex === index));
+  document.querySelectorAll("[data-rec-detail-chip]").forEach((chip) => {
+    const active = chip.dataset.recDetailChip === item.id;
+    chip.classList.toggle("is-active", active);
+    chip.setAttribute("aria-current", active ? "true" : "false");
+    if (active) {
+      const nav = chip.closest(".detail-chip-bar");
+      if (nav) nav.scrollTo({ left: Math.max(0, chip.offsetLeft - nav.clientWidth / 2 + chip.offsetWidth / 2), behavior: "smooth" });
+    }
+  });
+  const nav = document.querySelector(".detail-navigation");
+  if (nav) {
+    const previous = Boolean(state.recommendations.items[index - 1]);
+    const next = Boolean(state.recommendations.items[index + 1]);
+    const buttons = nav.querySelectorAll("[data-rec-detail-step]");
+    buttons[0]?.toggleAttribute("disabled", !previous);
+    buttons[1]?.toggleAttribute("disabled", !next);
+    const counter = nav.querySelector("[data-rec-detail-counter]");
+    if (counter) counter.textContent = `${index + 1} / ${cards.length}`;
+  }
+  [state.recommendations.items[index - 1], item, state.recommendations.items[index + 1]]
+    .filter((candidate) => candidate && !state.recommendations.detailValues.has(candidate.id))
+    .forEach(loadRecommendationDetailExtrasFor);
+}
+
+function scrollRecommendationDetail(id, { behavior = "smooth" } = {}) {
   const card = document.querySelector(`[data-rec-detail-card="${CSS.escape(id)}"]`);
   if (!card) return;
   const deck = card.closest("[data-rec-detail-deck]");
   // CSS scroll-margin-top keeps the card below the sticky app bar on both
   // desktop and mobile while scrollIntoView also handles the horizontal deck.
-  card.scrollIntoView({ behavior: "smooth", block: "start", inline: "start" });
-  if (deck && window.matchMedia("(max-width: 620px)").matches) deck.scrollTo({ left: card.offsetLeft, behavior: "smooth" });
+  const scrollBehavior = behavior === "instant" ? "auto" : behavior;
+  card.scrollIntoView({ behavior: scrollBehavior, block: "nearest", inline: "nearest" });
+  if (deck) deck.scrollTo({ left: card.offsetLeft, behavior: scrollBehavior });
+  state.recommendations.detailId = id;
+  state.recommendations.detail = state.recommendations.items.find((item) => item.id === id) || state.recommendations.detail;
+  if (behavior === "instant") syncRecommendationDetailSelection();
+}
+
+function bindRecommendationDetailInteractions() {
+  const deck = document.querySelector("[data-rec-detail-deck]");
+  if (!deck) return;
+  let frame = 0;
+  const schedule = () => {
+    cancelAnimationFrame(frame);
+    frame = requestAnimationFrame(syncRecommendationDetailSelection);
+  };
+  deck.addEventListener("scroll", schedule, { passive: true });
+  window.addEventListener("resize", schedule, { passive: true });
+  requestAnimationFrame(syncRecommendationDetailSelection);
+}
+
+function loadRecommendationDetailExtrasFor(item) {
+  const rec = state.recommendations;
+  recommendationDetailExtras(item.id).then(({ media, reviews }) => {
+    if (rec.level !== "detail") return;
+    rec.detailValues.set(item.id, { media, reviews });
+    const card = document.querySelector(`[data-rec-detail-card="${CSS.escape(item.id)}"]`);
+    const gallery = card?.querySelector("[data-detail-gallery]");
+    const review = card?.querySelector("[data-detail-reviews]");
+    if (gallery) gallery.innerHTML = detailGallery(item, { media, reviews });
+    if (review) review.outerHTML = detailReviews({ media, reviews });
+  }).catch(() => {});
 }
 
 function renderRecommendations() {
@@ -403,7 +493,8 @@ function renderRecommendations() {
     content.innerHTML = renderRecommendationDetailDeck();
     requestAnimationFrame(() => {
       const card = content.querySelector(`[data-rec-detail-card="${CSS.escape(state.recommendations.detailId)}"]`);
-      scrollRecommendationDetail(state.recommendations.detailId);
+      scrollRecommendationDetail(state.recommendations.detailId, { behavior: "instant" });
+      bindRecommendationDetailInteractions();
       loadRecommendationDetailExtras();
     });
     return;
@@ -420,17 +511,7 @@ function loadRecommendationDetailExtras() {
   const rec = state.recommendations;
   const selectedIndex = rec.items.findIndex((item) => item.id === rec.detailId);
   const items = rec.items.filter((item, index) => Math.abs(index - selectedIndex) <= 1);
-  items.forEach((item) => {
-    recommendationDetailExtras(item.id).then(({ media, reviews }) => {
-      if (rec.level !== "detail") return;
-      rec.detailValues.set(item.id, { media, reviews });
-      const card = document.querySelector(`[data-rec-detail-card="${CSS.escape(item.id)}"]`);
-      const gallery = card?.querySelector("[data-detail-gallery]");
-      const review = card?.querySelector("[data-detail-reviews]");
-      if (gallery) gallery.innerHTML = detailGallery(item, { media, reviews });
-      if (review) review.outerHTML = detailReviews({ media, reviews });
-    }).catch(() => {});
-  });
+  items.forEach(loadRecommendationDetailExtrasFor);
 }
 
 async function hydrateRecommendations({ refreshLatest = false } = {}) {
@@ -531,8 +612,11 @@ async function openRecommendation(kind, id) {
 function recommendationDetailExtras(id) {
   let cached = state.recommendations.detailCache.get(id);
   if (!cached) {
-    cached = Promise.all([client.listAttractionMedia(id), client.listAttractionReviews(id)])
-      .then(([media, reviews]) => ({ media, reviews }))
+    cached = Promise.all([
+      client.listAttractionMedia(id).catch(() => []),
+      client.listAttractionReviews(id).catch(() => [])
+    ])
+      .then(([media, reviews]) => ({ media: Array.isArray(media) ? media : [], reviews: Array.isArray(reviews) ? reviews : [] }))
       .catch((error) => {
         state.recommendations.detailCache.delete(id);
         throw error;
@@ -705,7 +789,7 @@ function collectionAttractionMarkup(item) {
   const modeLabel = { inside: "入内参观", outside: "外部参观", none: "未安排" }[mode];
   const map = mapTarget(item);
   const note = String(item.note || "").trim();
-  return `<article class="collection-attraction" data-collection-attraction-id="${escapeHtml(item.id)}"><button class="collection-attraction-open" type="button" data-collection-open="${escapeHtml(item.id)}" data-city-id="${escapeHtml(item.city_id || item.cityId || "")}"><span class="collection-attraction-title">${escapeHtml(safeCatalogName(item, "景点信息待配置"))}</span>${safeCatalogNameEn(item) ? `<span class="collection-attraction-en">${escapeHtml(safeCatalogNameEn(item))}</span>` : ""}<span class="collection-attraction-meta">${escapeHtml(item.tag || "景点")}${item.duration_label ? ` · ${escapeHtml(item.duration_label)}` : ""}</span><span class="collection-attraction-id">ID ${escapeHtml(item.id || "未知")}</span></button><div class="collection-attraction-actions"><button class="visit-mode mode-${mode}" type="button" data-collection-visit="${escapeHtml(item.id)}" aria-label="${modeLabel}，点击切换参观方式" aria-pressed="${mode !== "none"}">${modeLabel}</button>${map ? `<a class="collection-map-link" href="${map.url}" target="_blank" rel="noreferrer" aria-label="在地图中打开 ${escapeHtml(safeCatalogName(item, "景点"))}" title="打开地图">⌖</a>` : ""}</div>${`<p class="collection-note">备注：${escapeHtml(note || "无")}</p>`}</article>`;
+  return `<article class="collection-attraction" data-collection-attraction-id="${escapeHtml(item.id)}"><button class="collection-attraction-open" type="button" data-collection-open="${escapeHtml(item.id)}" data-city-id="${escapeHtml(item.city_id || item.cityId || "")}"><span class="collection-attraction-title">${escapeHtml(safeCatalogName(item, "景点信息待配置"))}</span>${safeCatalogNameEn(item) ? `<span class="collection-attraction-en">${escapeHtml(safeCatalogNameEn(item))}</span>` : ""}<span class="collection-attraction-meta">${escapeHtml(item.tag || "景点")}${item.duration_label ? ` · ${escapeHtml(item.duration_label)}` : ""}</span><span class="collection-attraction-id">ID ${escapeHtml(item.id || "未知")}</span></button><div class="collection-attraction-actions"><button class="visit-mode mode-${mode}" type="button" data-collection-visit="${escapeHtml(item.id)}" aria-label="${modeLabel}，点击切换参观方式" aria-pressed="${mode !== "none"}">${modeLabel}</button>${map ? `<a class="collection-map-link" href="${map.url}" target="_blank" rel="noreferrer" aria-label="在地图中打开 ${escapeHtml(safeCatalogName(item, "景点"))}" title="打开地图">${googleMapsIcon()}</a>` : ""}</div>${`<p class="collection-note">备注：${escapeHtml(note || "无")}</p>`}</article>`;
 }
 
 async function loadCollectionCatalog(records) {
