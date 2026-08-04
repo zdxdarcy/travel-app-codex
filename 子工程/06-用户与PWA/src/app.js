@@ -23,7 +23,7 @@ const EXTERNAL_VIEWS = {
   planner: "../04-旅程规划/planner.html",
   guide: "../05-当前行程导览/guide.html"
 };
-const LATEST_CACHE_KEY = "travel-app-latest-catalog-v1";
+const LATEST_CACHE_KEY = "travel-app-latest-catalog-v2";
 const LATEST_CACHE_TTL = 10 * 60 * 1000;
 const LATEST_CACHE_STALE_LIMIT = 24 * 60 * 60 * 1000;
 let latestFeedRequest = null;
@@ -62,7 +62,13 @@ function setView(view) {
   state.view = valid.includes(view) ? view : "discover";
   renderPlannerFab();
   if (EXTERNAL_VIEWS[state.view]) {
-    window.location.assign(EXTERNAL_VIEWS[state.view]);
+    // The planner navigation entry always starts a fresh draft. Existing trips
+    // are opened only through the explicit edit link below, which carries a
+    // tripId and is handled by planner.html's hydration path.
+    const target = state.view === "planner"
+      ? `${EXTERNAL_VIEWS.planner}?newTrip=1`
+      : EXTERNAL_VIEWS[state.view];
+    window.location.assign(target);
     return;
   }
   if (location.hash !== `#${state.view}`) history.replaceState(null, "", `#${state.view}`);
@@ -223,13 +229,21 @@ function writeLatestCache(items) {
   try { localStorage.setItem(LATEST_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), items })); } catch { /* storage is optional */ }
 }
 
-function latestCountryItems(items) {
-  const countries = new Map();
+function latestCityItems(items) {
+  const cities = new Map();
   for (const item of items || []) {
     if (!item?.id || !item.country?.id || !item.city?.id) continue;
-    if (!countries.has(item.country.id)) countries.set(item.country.id, item);
+    if (!cities.has(item.city.id)) {
+      // Keep the newest attraction as the city's ordering anchor, but make
+      // the city the public recommendation target.
+      cities.set(item.city.id, {
+        ...item,
+        id: item.city.id,
+        sourceAttractionId: item.id
+      });
+    }
   }
-  return [...countries.values()].slice(0, 4);
+  return [...cities.values()].slice(0, 2);
 }
 
 function renderLatestRelease() {
@@ -245,7 +259,7 @@ function renderLatestRelease() {
       : client.isConfigured() ? "公开目录暂无可用的最新景点。" : "公开目录尚未配置，暂无本机缓存。";
     content.innerHTML = `<span class="latest-release-empty">${emptyText}</span>`;
   } else {
-    content.innerHTML = latest.items.map((item) => `<button class="latest-release-card" type="button" data-latest-open="${escapeHtml(item.id)}" aria-label="查看 ${escapeHtml(item.country.name_zh)} 的 ${escapeHtml(item.name_zh)}"><strong>${escapeHtml(item.country.name_zh)}</strong><span class="latest-release-attraction">${escapeHtml(item.name_zh)}</span><span class="latest-release-city">${escapeHtml(item.city.name_zh)} · ${escapeHtml(item.tag || "景点")}</span></button>`).join("");
+    content.innerHTML = latest.items.map((item) => `<button class="latest-release-card" type="button" data-latest-city="${escapeHtml(item.city.id)}" aria-label="查看 ${escapeHtml(item.country.name_zh)} ${escapeHtml(item.city.name_zh)} 的景点"><strong>${escapeHtml(item.country.name_zh)}</strong><span class="latest-release-city">${escapeHtml(item.city.name_zh)}</span><span class="latest-release-meta">查看城市景点</span></button>`).join("");
   }
   if (latest.status === "loading") status.textContent = latest.items.length ? "正在更新 · 先显示本机缓存" : "";
   else if (latest.status === "error" && latest.fromCache) status.textContent = "网络不可用 · 显示本机缓存";
@@ -258,7 +272,7 @@ async function hydrateLatestRecommendations(force = false) {
   const cached = readLatestCache();
   const cacheAge = cached ? Date.now() - cached.cachedAt : Infinity;
   if (cached && ((!force && cacheAge <= LATEST_CACHE_TTL) || (!client.isConfigured() && cacheAge <= LATEST_CACHE_STALE_LIMIT))) {
-    state.latest = { status: "ready", items: latestCountryItems(cached.items), fromCache: true, cachedAt: cached.cachedAt, requestId: state.latest.requestId };
+    state.latest = { status: "ready", items: latestCityItems(cached.items), fromCache: true, cachedAt: cached.cachedAt, requestId: state.latest.requestId };
     renderLatestRelease();
     return;
   }
@@ -270,12 +284,12 @@ async function hydrateLatestRecommendations(force = false) {
   }
   latestFeedRequest = (async () => {
     const requestId = state.latest.requestId + 1;
-    const cachedItems = cached && cacheAge <= LATEST_CACHE_STALE_LIMIT ? latestCountryItems(cached.items) : [];
+    const cachedItems = cached && cacheAge <= LATEST_CACHE_STALE_LIMIT ? latestCityItems(cached.items) : [];
     state.latest = { status: "loading", items: cachedItems, fromCache: Boolean(cachedItems.length), cachedAt: cached?.cachedAt || 0, requestId };
     renderLatestRelease();
     try {
       const rows = await client.listLatestPublishedAttractions(12);
-      const items = latestCountryItems(rows);
+      const items = latestCityItems(rows);
       if (state.latest.requestId !== requestId) return;
       state.latest = { status: items.length ? "ready" : "empty", items, fromCache: false, cachedAt: Date.now(), requestId };
       if (items.length) writeLatestCache(items);
@@ -444,7 +458,11 @@ function scrollRecommendationDetail(id, { behavior = "smooth" } = {}) {
   if (!card) return;
   const deck = card.closest("[data-rec-detail-deck]");
   const scrollBehavior = behavior === "instant" ? "auto" : behavior;
-  if (deck) deck.scrollTo({ left: card.offsetLeft, behavior: scrollBehavior });
+  if (deck) {
+    const centeredLeft = card.offsetLeft - (deck.clientWidth - card.offsetWidth) / 2;
+    const maxLeft = Math.max(0, deck.scrollWidth - deck.clientWidth);
+    deck.scrollTo({ left: Math.max(0, Math.min(centeredLeft, maxLeft)), behavior: scrollBehavior });
+  }
   state.recommendations.detailId = id;
   state.recommendations.detail = state.recommendations.items.find((item) => item.id === id) || state.recommendations.detail;
   if (behavior === "instant") syncRecommendationDetailSelection();
@@ -503,6 +521,37 @@ function renderRecommendations() {
   content.innerHTML = `<div class="recommendation-grid">${items.map((item) => recommendationCard(item, kind)).join("")}</div>`;
 }
 
+async function resetDiscoverHome() {
+  const rec = state.recommendations;
+  rec.level = "continents";
+  rec.continent = null;
+  rec.country = null;
+  rec.city = null;
+  rec.detail = null;
+  rec.detailId = null;
+  rec.detailCache = new Map();
+  rec.detailValues = new Map();
+  rec.loading = true;
+  renderRecommendations();
+  if (!client.isConfigured()) {
+    rec.items = [];
+    rec.loading = false;
+    recommendationStatus("游客模式：目录需要部署配置后读取。");
+    renderRecommendations();
+    return;
+  }
+  try {
+    rec.items = await client.listContinents();
+    recommendationStatus("公开目录");
+  } catch (error) {
+    rec.items = [];
+    recommendationStatus(`目录暂不可用：${client.authError(error)}`);
+  } finally {
+    rec.loading = false;
+    renderRecommendations();
+  }
+}
+
 function loadRecommendationDetailExtras() {
   const rec = state.recommendations;
   const selectedIndex = rec.items.findIndex((item) => item.id === rec.detailId);
@@ -537,8 +586,8 @@ async function hydrateRecommendations({ refreshLatest = false } = {}) {
   }
 }
 
-async function openLatestAttraction(id) {
-  const item = state.latest.items.find((entry) => entry.id === id);
+async function openLatestCity(cityId) {
+  const item = state.latest.items.find((entry) => entry.city?.id === cityId);
   if (!item?.city?.id || !item.country?.id) return;
   if (!client.isConfigured()) {
     showToast("目录尚未配置，暂时无法打开景点详情");
@@ -556,12 +605,11 @@ async function openLatestAttraction(id) {
   renderRecommendations();
   try {
     const items = await client.listAttractions(item.city.id);
-    const attraction = items.find((entry) => entry.id === id);
-    if (!attraction) throw new Error("景点已下线或暂不可用");
+    if (!items.length) throw new Error("该城市暂时没有启用景点");
     rec.items = items;
-    rec.detail = attraction;
-    rec.detailId = id;
-    rec.level = "detail";
+    rec.detail = null;
+    rec.detailId = null;
+    rec.level = "attractions";
     recommendationStatus("公开目录");
   } catch (error) {
     rec.items = [];
@@ -1134,6 +1182,15 @@ function togglePlannerFab() {
 function bindEvents() {
   window.addEventListener("hashchange", () => setView(location.hash.replace(/^#/, "")));
   document.addEventListener("click", (event) => {
+    const discoverNav = event.target.closest('[data-nav="discover"]');
+    if (discoverNav) {
+      if (state.view === "discover") {
+        event.preventDefault();
+        resetDiscoverHome();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+      return;
+    }
     const fabToggle = event.target.closest("[data-fab-toggle]");
     if (fabToggle) { togglePlannerFab(); return; }
     const fabAction = event.target.closest(".planner-fab-action");
@@ -1164,8 +1221,8 @@ function bindEvents() {
     if (remove) handleDeleteTrip(remove.dataset.deleteTrip);
     const recOpen = event.target.closest("[data-rec-open]");
     if (recOpen) openRecommendation(recOpen.dataset.recOpen, recOpen.dataset.id);
-    const latestOpen = event.target.closest("[data-latest-open]");
-    if (latestOpen) openLatestAttraction(latestOpen.dataset.latestOpen);
+    const latestCity = event.target.closest("[data-latest-city]");
+    if (latestCity) openLatestCity(latestCity.dataset.latestCity);
     const detailStep = event.target.closest("[data-rec-detail-step]");
     if (detailStep && !detailStep.disabled) {
       const rec = state.recommendations;
