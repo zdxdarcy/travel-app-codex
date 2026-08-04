@@ -1,4 +1,4 @@
-const CACHE_NAME = "travel-app-subprojects-v10";
+const CACHE_NAME = "travel-app-subprojects-v11";
 const APP_SHELL = [
   "./06-用户与PWA/",
   "./06-用户与PWA/index.html",

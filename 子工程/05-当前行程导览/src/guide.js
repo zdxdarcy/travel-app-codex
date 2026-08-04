@@ -1,4 +1,4 @@
-import { guideClient, GuideError } from "./repository.js?v=20260814";
+import { guideClient, GuideError } from "./repository.js?v=20260815";
 
 const state = {
   snapshot: null,
@@ -306,8 +306,9 @@ function detailItemCard(item, day, index, selected) {
   const details = isPlace ? (item.details ? detailPlaceDetails(item.details) : missing) : logisticsDetails(item);
   const target = mapTarget(item);
   const actions = mapActions(item, target);
-  const titleRow = `<div class="detail-title-row"><h3>${escapeHtml(title)}</h3>${mapQuickLink(item, title)}</div>`;
-  return `<article class="guide-detail-card ${selected ? "is-selected" : ""}" id="item-${escapeHtml(item.id)}" data-detail-card="${escapeHtml(item.id)}"><div class="detail-card-heading"><div class="detail-card-heading-main"><div class="item-kicker"><span class="detail-order">${index + 1}</span>${location}${plan}</div>${titleRow}${item.details?.nameEn ? `<p class="item-en">${escapeHtml(item.details.nameEn)}</p>` : ""}</div><span class="status-pill status-${item.state.status}">${statusLabels[item.state.status]}</span></div>${noteEditor(item)}${details}${actions}<div class="execution"><span class="execution-label">实际状态</span><div class="status-actions" role="group" aria-label="${escapeHtml(title)}实际状态">${statusButton(item, "not_started", "○")}${statusButton(item, "completed", "✓")}${statusButton(item, "skipped", "—")}</div></div></article>`;
+  const titleRow = `<div class="detail-title-row"><h3>${escapeHtml(title)}</h3></div>`;
+  const headingActions = `<div class="detail-card-heading-actions"><span class="status-pill status-${item.state.status}">${statusLabels[item.state.status]}</span>${mapQuickLink(item, title)}</div>`;
+  return `<article class="guide-detail-card ${selected ? "is-selected" : ""}" id="item-${escapeHtml(item.id)}" data-detail-card="${escapeHtml(item.id)}"><div class="detail-card-heading"><div class="detail-card-heading-main"><div class="item-kicker"><span class="detail-order">${index + 1}</span>${location}${plan}</div>${titleRow}${item.details?.nameEn ? `<p class="item-en">${escapeHtml(item.details.nameEn)}</p>` : ""}</div>${headingActions}</div>${noteEditor(item)}${details}${actions}<div class="execution"><span class="execution-label">实际状态</span><div class="status-actions" role="group" aria-label="${escapeHtml(title)}实际状态">${statusButton(item, "not_started", "○")}${statusButton(item, "completed", "✓")}${statusButton(item, "skipped", "—")}</div></div></article>`;
 }
 
 function detailPlaceDetails(details) {

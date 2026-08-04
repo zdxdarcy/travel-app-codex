@@ -18,11 +18,12 @@
 }
 
 * { box-sizing: border-box; }
+html, body { max-width: 100%; overflow-x: hidden; overscroll-behavior-x: none; }
 body { margin: 0; min-width: 320px; background: var(--paper); }
 button, a, textarea { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 a { color: inherit; }
-.app-shell { min-height: 100vh; padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom)); }
+.app-shell { min-height: 100vh; min-width: 0; max-width: 100%; overflow-x: clip; padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom)); }
 .topbar { align-items: center; background: rgba(247,248,250,.96); border-bottom: 1px solid var(--line); display: flex; height: var(--topbar-height); justify-content: space-between; padding: 0 max(20px, calc((100vw - 1120px) / 2)); position: sticky; top: 0; z-index: 10; backdrop-filter: blur(14px); }
 .brand { align-items: center; display: inline-flex; font-size: 18px; font-weight: 750; gap: 8px; text-decoration: none; }
 .brand-mark { border-radius: 9px; display: block; flex: 0 0 30px; height: 30px; object-fit: contain; width: 30px; }
@@ -176,10 +177,11 @@ h3 { font-size: 20px; line-height: 1.25; margin: 0; }
 .attraction-chip.is-active span { background: var(--teal); color: white; }
 .detail-card-heading { align-items: start; display: flex; gap: 16px; justify-content: space-between; }
 .detail-card-heading-main { flex: 1 1 auto; min-width: 0; }
+.detail-card-heading-actions { align-items: flex-end; display: flex; flex: 0 0 auto; flex-direction: column; gap: 8px; }
 .detail-title-row { align-items: start; display: flex; gap: 8px; min-width: 0; }
 .detail-card-heading h3 { margin: 0 0 7px; }
 .detail-title-row h3 { min-width: 0; overflow-wrap: anywhere; }
-.map-quick-link { align-items: center; align-self: flex-start; background: transparent; border: 1px solid var(--line); border-radius: 6px; color: var(--teal); display: inline-flex; flex: 0 0 36px; height: 36px; justify-content: center; line-height: 1; margin-left: auto; margin-top: -2px; text-decoration: none; width: 36px; }
+.map-quick-link { align-items: center; background: transparent; border: 1px solid var(--line); border-radius: 6px; color: var(--teal); display: inline-flex; flex: 0 0 36px; height: 36px; justify-content: center; line-height: 1; text-decoration: none; width: 36px; }
 .map-quick-link:hover, .map-quick-link:focus-visible { background: #e7f1ed; border-color: var(--teal); }
 .google-maps-icon { display: block; flex: 0 0 22px; height: 22px; object-fit: contain; width: 22px; }
 .sr-only { clip: rect(0 0 0 0); clip-path: inset(50%); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }
@@ -234,8 +236,8 @@ h3 { font-size: 20px; line-height: 1.25; margin: 0; }
   .day-toolbar { align-items: start; }
   .day-toolbar h2 { font-size: 25px; }
   .day-meta { flex-direction: column; gap: 14px; margin-left: 0; margin-right: 0; }
-  .guide-detail-deck { flex-direction: row; gap: 0; margin: 0 -16px; overflow-x: auto; overscroll-behavior-x: contain; scroll-behavior: smooth; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
-  .guide-detail-card { flex: 0 0 100%; min-height: calc(100dvh - 120px); overflow-y: auto; padding: 22px 16px 30px; }
+  .guide-detail-deck { flex-direction: row; gap: 0; margin: 0 -16px; max-width: none; overflow-x: auto; overscroll-behavior-x: contain; scroll-behavior: smooth; scroll-snap-type: x mandatory; scroll-snap-stop: always; touch-action: pan-x; width: calc(100% + 32px); -webkit-overflow-scrolling: touch; }
+  .guide-detail-card { flex: 0 0 100%; min-height: calc(100dvh - 120px); max-width: 100%; overflow-x: hidden; overflow-y: auto; padding: 22px 16px 30px; scroll-snap-align: start; touch-action: pan-y; }
   .photo-strip { display: flex; gap: 8px; margin-right: -16px; overflow-x: auto; padding-bottom: 3px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
   .photo-strip img { flex: 0 0 min(78vw, 280px); scroll-snap-align: start; width: auto; }
   .detail-card-heading { gap: 8px; }

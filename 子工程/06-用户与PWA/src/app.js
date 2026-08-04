@@ -28,7 +28,7 @@ const EXTERNAL_VIEWS = {
   guide: "../05-当前行程导览/guide.html"
 };
 const EXTERNAL_VIEW_LABELS = { planner: "行程规划", guide: "当前导览" };
-const LATEST_CACHE_KEY = "travel-app-latest-catalog-v2";
+const LATEST_CACHE_KEY = "travel-app-latest-catalog-v3";
 const LATEST_CACHE_TTL = 10 * 60 * 1000;
 const LATEST_CACHE_STALE_LIMIT = 24 * 60 * 60 * 1000;
 let latestFeedRequest = null;
@@ -357,22 +357,22 @@ function writeLatestCache(items) {
   try { localStorage.setItem(LATEST_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), items })); } catch { /* storage is optional */ }
 }
 
-function latestCityItems(items) {
-  const cities = new Map();
+function latestCountryItems(items) {
+  const countries = new Map();
   for (const item of items || []) {
-    const sourceId = item?.id || item?.city?.id;
-    if (!sourceId || !item.country?.id || !item.city?.id) continue;
-    if (!cities.has(item.city.id)) {
-      // Keep the newest attraction as the city's ordering anchor, but make
-      // the city the public recommendation target.
-      cities.set(item.city.id, {
-        ...item,
-        id: item.city.id,
-        sourceAttractionId: item.id
-      });
+    const country = item?.country;
+    const countryKey = country?.id || country?.slug || country?.iso_code;
+    if (!countryKey) continue;
+    const entry = countries.get(countryKey) || { id: country.id || countryKey, country, cities: [] };
+    const sourceCities = Array.isArray(item.cities) ? item.cities : item.city ? [item.city] : [];
+    sourceCities.forEach((city) => {
+      if (city?.id && !entry.cities.some((candidate) => candidate.id === city.id)) entry.cities.push(city);
+    });
+    if (!countries.has(countryKey)) {
+      countries.set(countryKey, entry);
     }
   }
-  return [...cities.values()].slice(0, 2);
+  return [...countries.values()].slice(0, 2);
 }
 
 function renderLatestRelease() {
@@ -390,7 +390,10 @@ function renderLatestRelease() {
     content.innerHTML = `<span class="latest-release-empty">${emptyText}</span>`;
     content.removeAttribute("aria-busy");
   } else {
-    content.innerHTML = latest.items.map((item) => `<button class="latest-release-card" type="button" data-latest-city="${escapeHtml(item.city.id)}" aria-label="查看 ${escapeHtml(item.country.name_zh)} ${escapeHtml(item.city.name_zh)} 的景点"><strong>${escapeHtml(item.country.name_zh)}</strong><span class="latest-release-city">${escapeHtml(item.city.name_zh)}</span><span class="latest-release-meta">查看城市景点</span></button>`).join("");
+    content.innerHTML = latest.items.map((item) => {
+      const cities = (item.cities || []).slice(0, 3).map((city) => city.name_zh || city.name_en || city.slug).filter(Boolean);
+      return `<button class="latest-release-card" type="button" data-latest-country="${escapeHtml(item.id)}" aria-label="查看 ${escapeHtml(item.country.name_zh)} 城市目录"><strong>${escapeHtml(item.country.name_zh)}</strong><span class="latest-release-city">${escapeHtml(cities.join(" · ") || "城市目录待更新")}</span><span class="latest-release-meta">进入国家城市目录</span></button>`;
+    }).join("");
     content.removeAttribute("aria-busy");
   }
   if (latest.status === "loading") status.textContent = latest.items.length ? "正在更新 · 先显示本机缓存" : "";
@@ -407,8 +410,10 @@ async function hydrateLatestRecommendations(force = false) {
     ? idbCached
     : localCached;
   const cacheAge = cached ? Date.now() - cached.cachedAt : Infinity;
-  if (cached && ((!force && cacheAge <= LATEST_CACHE_TTL) || (!client.isConfigured() && cacheAge <= LATEST_CACHE_STALE_LIMIT))) {
-    state.latest = { status: "ready", items: latestCityItems(cached.items), fromCache: true, cachedAt: cached.cachedAt, requestId: state.latest.requestId };
+  const cachedCountries = cached ? latestCountryItems(cached.items) : [];
+  const cacheHasMultipleCountries = cachedCountries.length >= 2;
+  if (cached && ((!force && cacheAge <= LATEST_CACHE_TTL && (cacheHasMultipleCountries || !client.isConfigured())) || (!client.isConfigured() && cacheAge <= LATEST_CACHE_STALE_LIMIT))) {
+    state.latest = { status: "ready", items: cachedCountries, fromCache: true, cachedAt: cached.cachedAt, requestId: state.latest.requestId };
     renderLatestRelease();
     return;
   }
@@ -420,15 +425,17 @@ async function hydrateLatestRecommendations(force = false) {
   }
   latestFeedRequest = (async () => {
     const requestId = state.latest.requestId + 1;
-    const cachedItems = cached && cacheAge <= LATEST_CACHE_STALE_LIMIT ? latestCityItems(cached.items) : [];
+    const cachedItems = cached && cacheAge <= LATEST_CACHE_STALE_LIMIT ? latestCountryItems(cached.items) : [];
     state.latest = { status: "loading", items: cachedItems, fromCache: Boolean(cachedItems.length), cachedAt: cached?.cachedAt || 0, requestId };
     renderLatestRelease();
     try {
       // City recommendations do not need attraction rows. The attraction
       // catalog is fetched only after a city is opened, keeping the discover
       // shell light and deferring media/review work until detail view.
-      const rows = await client.listLatestPublishedCities(2);
-      const items = latestCityItems(rows);
+      // Read a wider window so deduping to one city per country still leaves
+      // two country recommendations when one country has several new cities.
+      const rows = await client.listLatestPublishedCities(24);
+      const items = latestCountryItems(rows);
       if (state.latest.requestId !== requestId) return;
       state.latest = { status: items.length ? "ready" : "empty", items, fromCache: false, cachedAt: Date.now(), requestId };
       if (items.length) {
@@ -450,7 +457,7 @@ async function hydrateLatestRecommendations(force = false) {
 
 function recommendationBreadcrumb() {
   const { level, continent, country, city } = state.recommendations;
-  const labels = [continent?.name_zh || "大洲"];
+  const labels = [continent?.name_zh || (level === "cities" || level === "attractions" || level === "detail" ? "国家目录" : "大洲")];
   if (level !== "continents" && country) labels.push(country.name_zh);
   if ((level === "attractions" || level === "detail") && city) labels.push(city.name_zh);
   $("#recommendationBreadcrumb").textContent = labels.join(" / ");
@@ -782,30 +789,27 @@ async function hydrateRecommendations({ refreshLatest = false } = {}) {
   }
 }
 
-async function openLatestCity(cityId) {
-  const item = state.latest.items.find((entry) => entry.city?.id === cityId);
-  if (!item?.city?.id || !item.country?.id) return;
+async function openLatestCountry(countryId) {
+  const item = state.latest.items.find((entry) => entry.id === countryId || entry.country?.id === countryId || entry.country?.slug === countryId);
+  if (!item?.country?.id) return;
   if (!client.isConfigured()) {
-    showToast("目录尚未配置，暂时无法打开景点详情");
+    showToast("目录尚未配置，暂时无法打开国家目录");
     return;
   }
   const rec = state.recommendations;
   rec.loading = true;
-  rec.level = "attractions";
+  rec.level = "cities";
   rec.continent = null;
   rec.country = item.country;
-  rec.city = item.city;
+  rec.city = null;
   rec.items = [];
   rec.detail = null;
   rec.detailId = null;
   renderRecommendations();
   try {
-    const items = await loadCatalogLevel("attractions", item.city.id, () => client.listAttractions(item.city.id));
-    if (!items.length) throw new Error("该城市暂时没有启用景点");
+    const items = await loadCatalogLevel("cities", item.country.id, () => client.listCities(item.country.id));
+    if (!items.length) throw new Error("该国家暂时没有可用城市");
     rec.items = items;
-    rec.detail = null;
-    rec.detailId = null;
-    rec.level = "attractions";
     recommendationStatus("公开目录");
   } catch (error) {
     rec.items = [];
@@ -884,7 +888,16 @@ async function backRecommendation() {
   try {
     if (rec.level === "detail") { rec.level = "attractions"; rec.detail = null; rec.detailId = null; }
     else if (rec.level === "attractions") { rec.level = "cities"; rec.items = await loadCatalogLevel("cities", rec.country.id, () => client.listCities(rec.country.id)); }
-    else if (rec.level === "cities") { rec.level = "countries"; rec.items = await loadCatalogLevel("countries", rec.continent.id, () => client.listCountries(rec.continent.id)); }
+    else if (rec.level === "cities") {
+      if (rec.continent?.id) {
+        rec.level = "countries";
+        rec.items = await loadCatalogLevel("countries", rec.continent.id, () => client.listCountries(rec.continent.id));
+      } else {
+        rec.level = "continents";
+        rec.country = null;
+        rec.items = await loadCatalogLevel("continents", "root", () => client.listContinents());
+      }
+    }
     else if (rec.level === "countries") { rec.level = "continents"; rec.items = await loadCatalogLevel("continents", "root", () => client.listContinents()); }
   } catch (error) {
     recommendationStatus(`目录暂不可用：${client.authError(error)}`);
@@ -1469,8 +1482,8 @@ function bindEvents() {
     if (recOpen) openRecommendation(recOpen.dataset.recOpen, recOpen.dataset.id);
     const mapLoad = event.target.closest("[data-map-load]");
     if (mapLoad) loadDetailMap(mapLoad);
-    const latestCity = event.target.closest("[data-latest-city]");
-    if (latestCity) openLatestCity(latestCity.dataset.latestCity);
+    const latestCountry = event.target.closest("[data-latest-country]");
+    if (latestCountry) openLatestCountry(latestCountry.dataset.latestCountry);
     const detailStep = event.target.closest("[data-rec-detail-step]");
     if (detailStep && !detailStep.disabled) {
       const rec = state.recommendations;
@@ -1522,7 +1535,7 @@ async function boot() {
   await hydrate();
   if (state.view === "discover") scheduleExternalPrefetch();
   if (state.recovery) authForm("update");
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("../sw.js", { scope: "../" }).catch(() => {});
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("../sw.js?v=20260815", { scope: "../" }).catch(() => {});
 }
 
 boot();

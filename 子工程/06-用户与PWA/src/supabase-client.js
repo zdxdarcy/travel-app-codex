@@ -207,7 +207,7 @@ async function listLatestPublishedAttractions(limit = 12) {
 }
 
 async function queryLatestPublishedCities(limit, sortField) {
-  const safeLimit = Math.max(1, Math.min(12, Number(limit) || 2));
+  const safeLimit = Math.max(1, Math.min(48, Number(limit) || 2));
   const query = `cities?select=id,country_id,region_id,name_zh,name_en,slug,latitude,longitude,${sortField},countries!inner(id,region_id,name_zh,name_en,slug,iso_code,is_active)&is_active=eq.true&countries.is_active=eq.true&order=${sortField}.desc,id.desc&limit=${safeLimit}`;
   const rows = await publicTable(query);
   return (Array.isArray(rows) ? rows : []).map((row) => {
