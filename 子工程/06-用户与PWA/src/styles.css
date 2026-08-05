@@ -104,7 +104,7 @@ h3 { margin-bottom: 7px; font-size: 18px; }
 .visit-mode.mode-outside { border-color: #efc29b; background: var(--orange-soft); color: #a46435; }
 .recommendation-empty { display: grid; gap: 6px; padding: 25px 0; color: var(--muted); font-size: 13px; }
 .recommendation-empty strong { color: var(--ink); font-size: 16px; }
-.attraction-detail { padding: 20px; border: 1px solid var(--line); background: var(--surface); box-shadow: var(--shadow); touch-action: pan-y; }
+.attraction-detail { padding: 20px; border: 1px solid var(--line); background: var(--surface); box-shadow: var(--shadow); touch-action: pan-x pan-y; }
 .detail-navigation { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; padding: 8px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--muted); font-size: 11px; font-weight: 800; }
 .detail-nav-button { width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); color: var(--green); font-size: 25px; line-height: 1; }
 .detail-nav-button:hover:not(:disabled) { border-color: var(--green); background: var(--green-soft); }
@@ -121,7 +121,7 @@ h3 { margin-bottom: 7px; font-size: 18px; }
 .detail-heading p, .detail-intro, .detail-note { color: var(--muted); line-height: 1.7; }
 .detail-heading p { margin-bottom: 0; font-size: 13px; }
 .detail-intro { margin: 18px 0; font-size: 14px; }
-.detail-gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin: 20px 0 4px; padding: 0; touch-action: pan-y; }
+.detail-gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin: 20px 0 4px; padding: 0; touch-action: pan-x pan-y; }
 .detail-gallery-item { align-items: center; background: var(--green-soft); border: 0; color: var(--muted); display: grid; min-width: 0; aspect-ratio: 1; justify-items: center; overflow: hidden; padding: 0; position: relative; width: 100%; }
 .detail-gallery-item:hover { outline: 2px solid var(--green); outline-offset: -2px; }
 .detail-gallery-item img { display: block; height: 100%; object-fit: cover; width: 100%; }
@@ -153,7 +153,7 @@ h3 { margin-bottom: 7px; font-size: 18px; }
 .detail-chip { flex: 0 0 auto; padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 12px; font-weight: 800; white-space: nowrap; }
 .detail-chip:hover, .detail-chip.is-active { border-color: var(--green); background: var(--green-soft); color: var(--green); }
 .recommendation-detail-deck { display: flex; justify-content: flex-start; gap: 18px; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; padding: 0 max(0px, calc((100% - min(100%, 940px)) / 2)) 8px; scroll-behavior: smooth; scroll-snap-type: x mandatory; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
-.attraction-detail-card { flex: 0 0 min(100%, 940px); min-width: 0; padding: 22px; border: 1px solid var(--line); background: var(--surface); box-shadow: var(--shadow); scroll-margin-top: 80px; scroll-snap-align: start; }
+.attraction-detail-card { flex: 0 0 min(100%, 940px); min-width: 0; padding: 22px; border: 1px solid var(--line); background: var(--surface); box-shadow: var(--shadow); scroll-margin-top: 80px; scroll-snap-align: start; touch-action: pan-x pan-y; }
 .attraction-detail-card.is-selected { border-color: #9bc9bc; }
 .enhanced-detail-layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(280px, .85fr); gap: 24px; margin-top: 18px; }
 .enhanced-detail-main, .enhanced-detail-aside { min-width: 0; }
