@@ -372,26 +372,15 @@ function syncDetailSelection() {
   if (!deck) return;
   const cards = [...deck.querySelectorAll("[data-detail-card]")];
   if (!cards.length) return;
-  const horizontal = getComputedStyle(deck).flexDirection === "row";
-  let index;
-  if (horizontal) {
-    const deckRect = deck.getBoundingClientRect();
-    const center = deckRect.left + deck.clientWidth / 2;
-    index = cards.reduce((best, card, candidate) => {
-      const bestRect = cards[best].getBoundingClientRect();
-      const candidateRect = card.getBoundingClientRect();
-      const bestDistance = Math.abs(bestRect.left + bestRect.width / 2 - center);
-      const candidateDistance = Math.abs(candidateRect.left + candidateRect.width / 2 - center);
-      return candidateDistance < bestDistance ? candidate : best;
-    }, 0);
-  } else {
-    const line = detailTopOffset() + 18;
-    index = cards.reduce((best, card, candidate) => {
-      const bestDistance = Math.abs(cards[best].getBoundingClientRect().top - line);
-      const candidateDistance = Math.abs(card.getBoundingClientRect().top - line);
-      return candidateDistance < bestDistance ? candidate : best;
-    }, 0);
-  }
+  const deckRect = deck.getBoundingClientRect();
+  const center = deckRect.left + deck.clientWidth / 2;
+  const index = cards.reduce((best, card, candidate) => {
+    const bestRect = cards[best].getBoundingClientRect();
+    const candidateRect = card.getBoundingClientRect();
+    const bestDistance = Math.abs(bestRect.left + bestRect.width / 2 - center);
+    const candidateDistance = Math.abs(candidateRect.left + candidateRect.width / 2 - center);
+    return candidateDistance < bestDistance ? candidate : best;
+  }, 0);
   const itemId = cards[index].dataset.detailCard;
   cards.forEach((card, cardIndex) => card.classList.toggle("is-selected", cardIndex === index));
   document.querySelectorAll("[data-detail-chip]").forEach((chip) => {
@@ -415,11 +404,9 @@ function bindDetailInteractions() {
     detailSyncFrame = requestAnimationFrame(syncDetailSelection);
   };
   deck.addEventListener("scroll", schedule, { passive: true });
-  window.addEventListener("scroll", schedule, { passive: true });
   window.addEventListener("resize", schedule, { passive: true });
   detailScrollCleanup = () => {
     deck.removeEventListener("scroll", schedule);
-    window.removeEventListener("scroll", schedule);
     window.removeEventListener("resize", schedule);
     cancelAnimationFrame(detailSyncFrame);
   };
@@ -429,8 +416,7 @@ function scrollToDetailCard(card, { behavior = "smooth", updateRoute = true } = 
   if (!card) return;
   const deck = card.closest("[data-detail-deck]");
   if (updateRoute) updateDetailRoute(card.dataset.detailCard);
-  const horizontal = deck && getComputedStyle(deck).flexDirection === "row";
-  if (horizontal && deck) {
+  if (deck) {
     const deckRect = deck.getBoundingClientRect();
     const cardRect = card.getBoundingClientRect();
     const cardCenter = cardRect.left + cardRect.width / 2;
@@ -438,16 +424,6 @@ function scrollToDetailCard(card, { behavior = "smooth", updateRoute = true } = 
     const targetLeft = deck.scrollLeft + (cardCenter - viewportCenter);
     const maxLeft = Math.max(0, deck.scrollWidth - deck.clientWidth);
     deck.scrollTo({ left: Math.max(0, Math.min(targetLeft, maxLeft)), behavior: behavior === "instant" ? "auto" : behavior });
-  } else {
-    card.scrollIntoView({
-      behavior: behavior === "instant" ? "auto" : behavior,
-      block: "start",
-      inline: "nearest"
-    });
-    requestAnimationFrame(() => {
-      const correction = card.getBoundingClientRect().top - detailTopOffset();
-      if (Math.abs(correction) > 1) window.scrollBy({ top: correction, behavior: "auto" });
-    });
   }
   requestAnimationFrame(syncDetailSelection);
 }
@@ -606,9 +582,7 @@ document.addEventListener("click", (event) => {
     const item = findItem(detailButton.dataset.detailItem);
     const day = state.snapshot?.days.find((entry) => entry.items.some((candidate) => candidate.id === item?.id));
     if (item && day) {
-      state.view = "detail";
-      state.selectedDayId = day.id;
-      scrollToDetailCard(document.querySelector(`[data-detail-card="${CSS.escape(item.id)}"]`), { behavior: "smooth", updateRoute: true });
+      setRoute("detail", day.id, item.id);
     }
     return;
   }
