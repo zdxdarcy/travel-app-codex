@@ -237,7 +237,7 @@ h3 { font-size: 20px; line-height: 1.25; margin: 0; }
   .day-toolbar { align-items: start; }
   .day-toolbar h2 { font-size: 25px; }
   .day-meta { flex-direction: column; gap: 14px; margin-left: 0; margin-right: 0; }
-  .guide-detail-deck { margin: 0 -16px; max-width: calc(100% + 32px); width: calc(100% + 32px); }
+  .guide-detail-deck { margin: 0 -16px; max-width: none; width: calc(100% + 32px); }
   .guide-detail-card { min-height: calc(100dvh - 120px); overflow-x: hidden; overflow-x: clip; overflow-y: auto; padding: 22px 16px 30px; }
   .photo-strip { display: flex; gap: 8px; margin-right: -16px; overflow-x: auto; padding-bottom: 3px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
   .photo-strip img { flex: 0 0 min(78vw, 280px); scroll-snap-align: start; width: auto; }

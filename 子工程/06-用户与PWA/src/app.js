@@ -1,4 +1,4 @@
-import { supabaseClient as client } from "./supabase-client.js?v=20260822";
+import { supabaseClient as client } from "./supabase-client.js?v=20260823";
 import { cacheKeys, readCache, writeCache } from "./idb-cache.js";
 
 const state = {
@@ -1592,7 +1592,7 @@ async function boot() {
   await hydrate();
   if (state.view === "discover") scheduleExternalPrefetch();
   if (state.recovery) authForm("update");
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("../sw.js?v=20260822", { scope: "../" }).catch(() => {});
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("../sw.js?v=20260823", { scope: "../" }).catch(() => {});
 }
 
 boot();
