@@ -217,9 +217,9 @@ h3 { font-size: 20px; line-height: 1.25; margin: 0; }
 
 @media (max-width: 760px) {
   /* Keep horizontal gestures inside the attraction detail carousel. */
-  .topbar, .main-content, .trip-hero, .view-switch, .day-tabs, .day-tabs-scroll,
-  .day-nav, .day-nav-scroll, .content-section, .day-toolbar, .attraction-nav,
-  .attraction-nav-scroll, .day-grid, .day-card, .quiet-panel, .item-card { touch-action: pan-y; }
+  .topbar, .main-content, .trip-hero, .view-switch, .day-tabs, .day-nav,
+  .content-section, .day-toolbar, .attraction-nav, .day-grid, .day-card,
+  .quiet-panel, .item-card { touch-action: pan-y; }
   :root { --topbar-height: calc(58px + env(safe-area-inset-top)); }
   .topbar { padding: env(safe-area-inset-top) 16px 0; }
   .main-content { padding: 18px 12px 56px; }
