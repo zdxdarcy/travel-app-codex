@@ -318,7 +318,9 @@ function detailPlaceDetails(details) {
     details.price ? `<span><b>票价</b>${escapeHtml(details.price)}</span>` : "",
     details.rating != null ? `<span><b>评价</b>${details.rating.toFixed(1)} / 5${details.reviewCount != null ? ` · ${details.reviewCount} 条` : ""}</span>` : ""
   ].filter(Boolean).join("");
-  const photos = details.photos.length ? `<div class="photo-strip detail-photo-strip">${details.photos.map((photo) => `<img src="${escapeHtml(photo.url)}" alt="${escapeHtml(photo.alt)}" loading="lazy" decoding="async">`).join("")}</div>` : "";
+  const photos = details.extrasLoaded
+    ? (details.photos.length ? `<div class="photo-strip detail-photo-strip">${details.photos.map((photo) => `<img src="${escapeHtml(photo.url)}" alt="${escapeHtml(photo.alt)}" loading="lazy" decoding="async">`).join("")}</div>` : "")
+    : '<div class="photo-strip detail-photo-strip photo-loading" aria-label="正在加载景点图片"><span>图片加载中</span></div>';
   const reviews = renderReviewSummary(details.reviewSummaries, 5);
   return `${details.intro ? `<p class="item-intro detail-intro">${escapeHtml(details.intro)}</p>` : ""}${photos}${facts ? `<div class="fact-row detail-facts">${facts}</div>` : ""}${details.tips ? `<p class="tips"><b>实用贴士</b>${escapeHtml(details.tips)}</p>` : ""}${reviews}`;
 }
@@ -393,6 +395,9 @@ function syncDetailSelection() {
     }
   });
   if (requestedItemId() !== itemId) updateDetailRoute(itemId);
+  // Detail extras are loaded on demand. Trigger the request after a swipe so
+  // every attraction card can populate its own photos and reviews.
+  queueSelectedExtras();
 }
 
 function bindDetailInteractions() {
@@ -403,11 +408,45 @@ function bindDetailInteractions() {
     cancelAnimationFrame(detailSyncFrame);
     detailSyncFrame = requestAnimationFrame(syncDetailSelection);
   };
+  let gesture = null;
+  const onPointerDown = (event) => {
+    if (!event.isPrimary || event.pointerType === "mouse" || !event.target.closest("[data-detail-card]")) return;
+    gesture = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, startScrollLeft: deck.scrollLeft, axis: null };
+  };
+  const onPointerMove = (event) => {
+    if (!gesture || event.pointerId !== gesture.pointerId) return;
+    const deltaX = event.clientX - gesture.startX;
+    const deltaY = event.clientY - gesture.startY;
+    if (!gesture.axis) {
+      if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) < 8) return;
+      gesture.axis = Math.abs(deltaX) > Math.abs(deltaY) ? "horizontal" : "vertical";
+      deck.classList.toggle("is-vertical-gesture", gesture.axis === "vertical");
+    }
+    if (gesture.axis === "vertical" && deck.scrollLeft !== gesture.startScrollLeft) deck.scrollLeft = gesture.startScrollLeft;
+  };
+  const onPointerEnd = (event) => {
+    if (!gesture || event.pointerId !== gesture.pointerId) return;
+    const lockedLeft = gesture.startScrollLeft;
+    const wasVertical = gesture.axis === "vertical";
+    gesture = null;
+    if (wasVertical) deck.scrollLeft = lockedLeft;
+    requestAnimationFrame(() => deck.classList.remove("is-vertical-gesture"));
+  };
   deck.addEventListener("scroll", schedule, { passive: true });
   window.addEventListener("resize", schedule, { passive: true });
+  deck.addEventListener("pointerdown", onPointerDown, { passive: true });
+  deck.addEventListener("pointermove", onPointerMove, { passive: true });
+  deck.addEventListener("pointerup", onPointerEnd, { passive: true });
+  deck.addEventListener("pointercancel", onPointerEnd, { passive: true });
   detailScrollCleanup = () => {
     deck.removeEventListener("scroll", schedule);
     window.removeEventListener("resize", schedule);
+    deck.removeEventListener("pointerdown", onPointerDown);
+    deck.removeEventListener("pointermove", onPointerMove);
+    deck.removeEventListener("pointerup", onPointerEnd);
+    deck.removeEventListener("pointercancel", onPointerEnd);
+    deck.classList.remove("is-vertical-gesture");
+    gesture = null;
     cancelAnimationFrame(detailSyncFrame);
   };
 }

@@ -114,6 +114,7 @@ function detailsFor(attraction, media, reviews) {
     duration: attraction.duration_label || null,
     tips: attraction.visit_notes || null,
     photos: (media.get(attraction.id) || []).filter((row) => row.media_type === "image").map((row) => ({ url: row.url, alt: row.alt_text || attraction.name_zh })).slice(0, 6),
+    extrasLoaded: false,
     reviewSummaries: reviews.get(attraction.id) || [],
     rating: attraction.rating == null ? null : Number(attraction.rating),
     reviewCount: attraction.review_count == null ? null : Number(attraction.review_count),
