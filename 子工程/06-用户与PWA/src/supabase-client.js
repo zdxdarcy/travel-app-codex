@@ -164,8 +164,14 @@ async function listContinents() {
 }
 
 async function listCountries(continentId) {
-  const query = `countries?select=id,region_id,name_zh,name_en,slug,iso_code&region_id=eq.${encodeURIComponent(continentId)}&is_active=eq.true&order=name_zh`;
-  return publicTable(query);
+  const filters = `&region_id=eq.${encodeURIComponent(continentId)}&is_active=eq.true&order=name_zh`;
+  try {
+    return await publicTable(`countries?select=id,region_id,name_zh,name_en,slug,iso_code,directory_level${filters}`);
+  } catch (error) {
+    // Keep older deployments readable until the additive migration is applied.
+    if (!/directory_level|column.*does not exist|PGRST204|schema/i.test(String(error?.message || error))) throw error;
+    return publicTable(`countries?select=id,region_id,name_zh,name_en,slug,iso_code${filters}`);
+  }
 }
 
 async function listRegions(countryId) {

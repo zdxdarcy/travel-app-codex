@@ -1,4 +1,4 @@
-import { supabaseClient as client } from "./supabase-client.js";
+import { supabaseClient as client } from "./supabase-client.js?v=20260822";
 import { cacheKeys, readCache, writeCache } from "./idb-cache.js";
 
 const state = {
@@ -811,7 +811,7 @@ async function openLatestCountry(countryId) {
   rec.detailId = null;
   renderRecommendations();
   try {
-    const directory = await loadCountryDirectory(item.country.id);
+    const directory = await loadCountryDirectory(item.country);
     rec.level = directory.level;
     const items = directory.items;
     if (!items.length) throw new Error("该国家暂时没有可用城市");
@@ -828,7 +828,12 @@ async function openLatestCountry(countryId) {
   }
 }
 
-async function loadCountryDirectory(countryId) {
+async function loadCountryDirectory(country) {
+  const countryId = typeof country === "string" ? country : country?.id;
+  const directoryLevel = typeof country === "string" ? "cities" : String(country?.directory_level || "cities").toLowerCase();
+  if (!countryId || directoryLevel !== "regions") {
+    return { level: "cities", items: await loadCatalogLevel("cities", countryId, () => client.listCities(countryId)) };
+  }
   let regions = [];
   try {
     regions = await loadCatalogLevel("regions", countryId, () => client.listRegions(countryId));
@@ -859,7 +864,7 @@ async function openRecommendation(kind, id) {
     } else if (kind === "country") {
       rec.country = rec.items.find((item) => item.id === id) || null;
       rec.region = null;
-      const directory = await loadCountryDirectory(id);
+      const directory = await loadCountryDirectory(rec.country);
       rec.level = directory.level;
       rec.items = directory.items;
     } else if (kind === "region") {
@@ -1579,7 +1584,7 @@ async function boot() {
   await hydrate();
   if (state.view === "discover") scheduleExternalPrefetch();
   if (state.recovery) authForm("update");
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("../sw.js?v=20260821", { scope: "../" }).catch(() => {});
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("../sw.js?v=20260822", { scope: "../" }).catch(() => {});
 }
 
 boot();
