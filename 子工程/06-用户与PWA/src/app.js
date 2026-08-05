@@ -9,7 +9,7 @@ const state = {
   activeTripId: null,
   collection: { status: "idle", tree: [], errors: [], requestId: 0 },
   latest: { status: "loading", items: [], fromCache: false, cachedAt: 0, requestId: 0 },
-  recommendations: { level: "continents", continent: null, country: null, city: null, items: [], detail: null, detailId: null, detailCache: new Map(), detailValues: new Map(), loading: true },
+  recommendations: { level: "continents", continent: null, country: null, region: null, city: null, items: [], detail: null, detailId: null, detailCache: new Map(), detailValues: new Map(), loading: true },
   recovery: false,
   installPrompt: null,
   plannerFabOpen: false,
@@ -456,9 +456,10 @@ async function hydrateLatestRecommendations(force = false) {
 }
 
 function recommendationBreadcrumb() {
-  const { level, continent, country, city } = state.recommendations;
-  const labels = [continent?.name_zh || (level === "cities" || level === "attractions" || level === "detail" ? "国家目录" : "大洲")];
+  const { level, continent, country, region, city } = state.recommendations;
+  const labels = [continent?.name_zh || (level === "regions" || level === "cities" || level === "attractions" || level === "detail" ? "国家目录" : "大洲")];
   if (level !== "continents" && country) labels.push(country.name_zh);
+  if ((level === "cities" || level === "attractions" || level === "detail") && region) labels.push(region.name_zh);
   if ((level === "attractions" || level === "detail") && city) labels.push(city.name_zh);
   $("#recommendationBreadcrumb").textContent = labels.join(" / ");
   $("#recommendationBack").hidden = level === "continents";
@@ -472,7 +473,7 @@ function recommendationCard(item, kind) {
   }
   const title = `${item.name_zh}`;
   const subtitle = item.name_en || item.slug || "";
-  const meta = kind === "country" ? "进入城市目录" : kind === "city" ? "进入景点目录" : "查看国家";
+  const meta = kind === "country" ? "进入国家目录" : kind === "region" ? "进入城市目录" : kind === "city" ? "进入景点目录" : "查看国家";
   return `<button class="recommendation-card destination-card" type="button" data-rec-open="${kind}" data-id="${escapeHtml(item.id)}"><span class="recommendation-card-title">${escapeHtml(title)}</span><span class="recommendation-card-en">${escapeHtml(subtitle)}</span><span class="recommendation-card-meta">${meta}</span></button>`;
 }
 
@@ -699,7 +700,7 @@ function renderRecommendations() {
     content.removeAttribute("aria-busy");
     return;
   }
-  const kind = level === "continents" ? "continent" : level === "countries" ? "country" : level === "cities" ? "city" : "attraction";
+  const kind = level === "continents" ? "continent" : level === "countries" ? "country" : level === "regions" ? "region" : level === "cities" ? "city" : "attraction";
   content.innerHTML = `<div class="recommendation-grid">${items.map((item) => recommendationCard(item, kind)).join("")}</div>`;
   content.removeAttribute("aria-busy");
 }
@@ -709,6 +710,7 @@ async function resetDiscoverHome() {
   rec.level = "continents";
   rec.continent = null;
   rec.country = null;
+  rec.region = null;
   rec.city = null;
   rec.detail = null;
   rec.detailId = null;
@@ -755,6 +757,7 @@ async function hydrateRecommendations({ refreshLatest = false } = {}) {
   state.recommendations.level = "continents";
   state.recommendations.continent = null;
   state.recommendations.country = null;
+  state.recommendations.region = null;
   state.recommendations.city = null;
   state.recommendations.detailCache = new Map();
   state.recommendations.detailValues = new Map();
@@ -801,13 +804,16 @@ async function openLatestCountry(countryId) {
   rec.level = "cities";
   rec.continent = null;
   rec.country = item.country;
+  rec.region = null;
   rec.city = null;
   rec.items = [];
   rec.detail = null;
   rec.detailId = null;
   renderRecommendations();
   try {
-    const items = await loadCatalogLevel("cities", item.country.id, () => client.listCities(item.country.id));
+    const directory = await loadCountryDirectory(item.country.id);
+    rec.level = directory.level;
+    const items = directory.items;
     if (!items.length) throw new Error("该国家暂时没有可用城市");
     rec.items = items;
     recommendationStatus("公开目录");
@@ -822,6 +828,18 @@ async function openLatestCountry(countryId) {
   }
 }
 
+async function loadCountryDirectory(countryId) {
+  let regions = [];
+  try {
+    regions = await loadCatalogLevel("regions", countryId, () => client.listRegions(countryId));
+  } catch {
+    // Older deployments may not expose the regions view yet; a country can
+    // still use the original country -> city directory in that case.
+  }
+  if (regions.length) return { level: "regions", items: regions };
+  return { level: "cities", items: await loadCatalogLevel("cities", countryId, () => client.listCities(countryId)) };
+}
+
 async function openRecommendation(kind, id) {
   const rec = state.recommendations;
   if (kind === "attraction") {
@@ -833,12 +851,22 @@ async function openRecommendation(kind, id) {
   try {
     if (kind === "continent") {
       rec.continent = rec.items.find((item) => item.id === id) || null;
+      rec.country = null;
+      rec.region = null;
+      rec.city = null;
       rec.level = "countries";
       rec.items = await loadCatalogLevel("countries", id, () => client.listCountries(id));
     } else if (kind === "country") {
       rec.country = rec.items.find((item) => item.id === id) || null;
+      rec.region = null;
+      const directory = await loadCountryDirectory(id);
+      rec.level = directory.level;
+      rec.items = directory.items;
+    } else if (kind === "region") {
+      rec.region = rec.items.find((item) => item.id === id) || null;
+      rec.city = null;
       rec.level = "cities";
-      rec.items = await loadCatalogLevel("cities", id, () => client.listCities(id));
+      rec.items = await loadCatalogLevel("cities", rec.country.id, () => client.listCities(rec.country.id, id));
     } else if (kind === "city") {
       rec.city = rec.items.find((item) => item.id === id) || null;
       rec.level = "attractions";
@@ -887,8 +915,22 @@ async function backRecommendation() {
   renderRecommendations();
   try {
     if (rec.level === "detail") { rec.level = "attractions"; rec.detail = null; rec.detailId = null; }
-    else if (rec.level === "attractions") { rec.level = "cities"; rec.items = await loadCatalogLevel("cities", rec.country.id, () => client.listCities(rec.country.id)); }
+    else if (rec.level === "attractions") { rec.level = "cities"; rec.items = await loadCatalogLevel("cities", rec.country.id, () => client.listCities(rec.country.id, rec.region?.id || null)); }
     else if (rec.level === "cities") {
+      if (rec.region?.id) {
+        rec.level = "regions";
+        rec.items = await loadCatalogLevel("regions", rec.country.id, () => client.listRegions(rec.country.id));
+      } else if (rec.continent?.id) {
+        rec.level = "countries";
+        rec.items = await loadCatalogLevel("countries", rec.continent.id, () => client.listCountries(rec.continent.id));
+      } else {
+        rec.level = "continents";
+        rec.country = null;
+        rec.items = await loadCatalogLevel("continents", "root", () => client.listContinents());
+      }
+    }
+    else if (rec.level === "regions") {
+      rec.region = null;
       if (rec.continent?.id) {
         rec.level = "countries";
         rec.items = await loadCatalogLevel("countries", rec.continent.id, () => client.listCountries(rec.continent.id));
@@ -898,7 +940,7 @@ async function backRecommendation() {
         rec.items = await loadCatalogLevel("continents", "root", () => client.listContinents());
       }
     }
-    else if (rec.level === "countries") { rec.level = "continents"; rec.items = await loadCatalogLevel("continents", "root", () => client.listContinents()); }
+    else if (rec.level === "countries") { rec.level = "continents"; rec.country = null; rec.items = await loadCatalogLevel("continents", "root", () => client.listContinents()); }
   } catch (error) {
     recommendationStatus(`目录暂不可用：${client.authError(error)}`);
   } finally {
@@ -912,7 +954,7 @@ async function toggleRecommendationVisit(attractionId) {
   const next = { none: "inside", inside: "outside", outside: "none" }[current];
   const attraction = [...state.recommendations.items, state.recommendations.detail].find((item) => item?.id === attractionId);
   if (!attraction || !state.recommendations.country) return;
-  const row = normalizeSelection({ attractionId, countryId: state.recommendations.country.id, cityId: state.recommendations.city?.id || "", attractionName: attraction.name_zh, attractionNameEn: attraction.name_en, continentId: state.recommendations.continent?.id || "", continentName: state.recommendations.continent?.name_zh || "", continentNameEn: state.recommendations.continent?.name_en || "", countryName: state.recommendations.country?.name_zh || "", countryNameEn: state.recommendations.country?.name_en || "", cityName: state.recommendations.city?.name_zh || "", cityNameEn: state.recommendations.city?.name_en || "", visitMode: next, updatedAt: new Date().toISOString(), source: client.user ? "cloud" : "guest-local" });
+  const row = normalizeSelection({ attractionId, countryId: state.recommendations.country.id, cityId: state.recommendations.city?.id || "", regionId: state.recommendations.region?.id || "", regionName: state.recommendations.region?.name_zh || "", regionNameEn: state.recommendations.region?.name_en || "", attractionName: attraction.name_zh, attractionNameEn: attraction.name_en, continentId: state.recommendations.continent?.id || "", continentName: state.recommendations.continent?.name_zh || "", continentNameEn: state.recommendations.continent?.name_en || "", countryName: state.recommendations.country?.name_zh || "", countryNameEn: state.recommendations.country?.name_en || "", cityName: state.recommendations.city?.name_zh || "", cityNameEn: state.recommendations.city?.name_en || "", visitMode: next, updatedAt: new Date().toISOString(), source: client.user ? "cloud" : "guest-local" });
   state.countries = [...state.countries.filter((item) => (item.attractionId || item.attraction_id) !== attractionId), row];
   state.collection.status = "idle";
   persistGuest();
@@ -1164,6 +1206,8 @@ async function openCollectionAttraction(id) {
   const city = result.city;
   const attraction = result.item;
   const country = state.collection.tree.flatMap((continent) => continent.children).find((item) => item.children.some((child) => child === city || child.children.some((nested) => nested === city)));
+  state.recommendations.continent = row.continentId ? { id: row.continentId, name_zh: row.continentName, name_en: row.continentNameEn } : null;
+  state.recommendations.region = row.regionId ? { id: row.regionId, name_zh: row.regionName, name_en: row.regionNameEn } : null;
   state.recommendations.city = { id: city.id, name_zh: city.name, name_en: city.nameEn };
   state.recommendations.country = country ? { id: country.id, name_zh: country.name, name_en: country.nameEn } : { id: row.countryId, name_zh: row.countryName || "国家信息待配置", name_en: row.countryNameEn };
   state.recommendations.items = [attraction];
@@ -1535,7 +1579,7 @@ async function boot() {
   await hydrate();
   if (state.view === "discover") scheduleExternalPrefetch();
   if (state.recovery) authForm("update");
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("../sw.js?v=20260817", { scope: "../" }).catch(() => {});
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("../sw.js?v=20260818", { scope: "../" }).catch(() => {});
 }
 
 boot();

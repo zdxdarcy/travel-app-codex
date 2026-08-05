@@ -18,12 +18,13 @@
 }
 
 * { box-sizing: border-box; }
-html, body { max-width: 100%; overflow-x: hidden; overscroll-behavior-x: none; }
+html, body { max-width: 100%; overflow-x: hidden; overflow-x: clip; overscroll-behavior-x: none; }
 body { margin: 0; min-width: 320px; background: var(--paper); }
 button, a, textarea { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 a { color: inherit; }
 .app-shell { min-height: 100vh; min-width: 0; max-width: 100%; overflow-x: clip; padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom)); }
+#app { min-width: 0; max-width: 100%; overflow-x: clip; }
 .topbar { align-items: center; background: rgba(247,248,250,.96); border-bottom: 1px solid var(--line); display: flex; height: var(--topbar-height); justify-content: space-between; padding: 0 max(20px, calc((100vw - 1120px) / 2)); position: sticky; top: 0; z-index: 10; backdrop-filter: blur(14px); }
 .brand { align-items: center; display: inline-flex; font-size: 18px; font-weight: 750; gap: 8px; text-decoration: none; }
 .brand-mark { border-radius: 9px; display: block; flex: 0 0 30px; height: 30px; object-fit: contain; width: 30px; }
@@ -66,7 +67,7 @@ h3 { font-size: 20px; line-height: 1.25; margin: 0; }
 .day-tab:hover, .day-tab.is-active { background: white; border-color: white; color: var(--teal-dark); }
 .day-tab.home { background: rgba(255,255,255,.2); }
 .day-tab-separator { width: 1px; height: 20px; flex: 0 0 auto; background: rgba(255,255,255,.35); }
-.content-section { background: white; padding: 38px; }
+.content-section { min-width: 0; max-width: 100%; background: white; padding: 38px; }
 .compact-heading { align-items: end; display: flex; justify-content: space-between; margin-bottom: 25px; }
 .compact-heading .lede, .day-toolbar .lede { color: var(--muted); font-size: 14px; margin: 0; }
 .heading-index { color: #cad4d4; font-size: 42px; font-weight: 800; }
@@ -166,8 +167,8 @@ h3 { font-size: 20px; line-height: 1.25; margin: 0; }
 .note-input[contenteditable="true"] { max-height: 240px; min-height: 64px; overflow-y: auto; resize: none; white-space: pre-wrap; }
 .note-input[contenteditable="true"]:empty::before { color: #9aa5a8; content: attr(data-ph); font-style: italic; pointer-events: none; }
 .note-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
-.guide-detail-deck { display: flex; flex-direction: row; gap: 0; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; scroll-behavior: smooth; scroll-snap-type: x mandatory; scroll-snap-stop: always; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
-.guide-detail-card { flex: 0 0 100%; width: 100%; max-width: 100%; background: var(--card); border: 1px solid var(--line); min-width: 0; min-height: calc(100dvh - 190px); overflow: visible; padding: 26px 28px 34px; scroll-margin-top: calc(var(--topbar-height, 64px) + 16px); scroll-snap-align: start; }
+.guide-detail-deck { box-sizing: border-box; contain: inline-size; display: flex; flex-direction: row; gap: 0; min-width: 0; width: 100%; max-width: 100%; overflow-x: auto; overflow-y: visible; overscroll-behavior: contain; overscroll-behavior-x: contain; scroll-behavior: smooth; scroll-snap-type: x mandatory; scroll-snap-stop: always; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
+.guide-detail-card { box-sizing: border-box; flex: 0 0 100%; width: 100%; max-width: 100%; background: var(--card); border: 1px solid var(--line); min-width: 0; min-height: calc(100dvh - 190px); overflow: visible; padding: 26px 28px 34px; scroll-margin-top: calc(var(--topbar-height, 64px) + 16px); scroll-snap-align: start; }
 .attraction-nav { border-bottom: 1px solid var(--line); margin: 0 0 18px; overflow: hidden; padding: 0 0 12px; }
 .attraction-nav-scroll { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; }
 .attraction-chip { align-items: center; display: inline-flex; flex: 0 0 auto; gap: 6px; border: 1px solid var(--line); border-radius: 999px; background: white; color: var(--muted); cursor: pointer; font-size: 12px; font-weight: 800; padding: 6px 11px; white-space: nowrap; }
@@ -236,8 +237,8 @@ h3 { font-size: 20px; line-height: 1.25; margin: 0; }
   .day-toolbar { align-items: start; }
   .day-toolbar h2 { font-size: 25px; }
   .day-meta { flex-direction: column; gap: 14px; margin-left: 0; margin-right: 0; }
-  .guide-detail-deck { margin: 0 -16px; max-width: none; width: calc(100% + 32px); }
-  .guide-detail-card { min-height: calc(100dvh - 120px); overflow-x: hidden; overflow-y: auto; padding: 22px 16px 30px; }
+  .guide-detail-deck { margin: 0 -16px; max-width: calc(100% + 32px); width: calc(100% + 32px); }
+  .guide-detail-card { min-height: calc(100dvh - 120px); overflow-x: hidden; overflow-x: clip; overflow-y: auto; padding: 22px 16px 30px; }
   .photo-strip { display: flex; gap: 8px; margin-right: -16px; overflow-x: auto; padding-bottom: 3px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
   .photo-strip img { flex: 0 0 min(78vw, 280px); scroll-snap-align: start; width: auto; }
   .detail-card-heading { gap: 8px; }
