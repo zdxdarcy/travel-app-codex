@@ -167,7 +167,7 @@ h3 { font-size: 20px; line-height: 1.25; margin: 0; }
 .note-input[contenteditable="true"] { max-height: 240px; min-height: 64px; overflow-y: auto; resize: none; white-space: pre-wrap; }
 .note-input[contenteditable="true"]:empty::before { color: #9aa5a8; content: attr(data-ph); font-style: italic; pointer-events: none; }
 .note-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
-.guide-detail-deck { box-sizing: border-box; contain: inline-size; display: flex; flex-direction: row; gap: 0; min-width: 0; width: 100%; max-width: 100%; overflow-x: auto; overflow-y: visible; overscroll-behavior: contain; overscroll-behavior-x: contain; scroll-behavior: smooth; scroll-snap-type: x mandatory; scroll-snap-stop: always; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
+.guide-detail-deck { box-sizing: border-box; display: flex; flex-direction: row; gap: 0; min-width: 0; width: 100%; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; scroll-behavior: smooth; scroll-snap-type: x mandatory; scroll-snap-stop: always; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
 .guide-detail-card { box-sizing: border-box; flex: 0 0 100%; width: 100%; max-width: 100%; background: var(--card); border: 1px solid var(--line); min-width: 0; min-height: calc(100dvh - 190px); overflow: visible; padding: 26px 28px 34px; scroll-margin-top: calc(var(--topbar-height, 64px) + 16px); scroll-snap-align: start; }
 .attraction-nav { border-bottom: 1px solid var(--line); margin: 0 0 18px; overflow: hidden; padding: 0 0 12px; }
 .attraction-nav-scroll { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; }

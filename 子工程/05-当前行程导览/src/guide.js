@@ -1,4 +1,4 @@
-import { guideClient, GuideError } from "./repository.js?v=20260818";
+import { guideClient, GuideError } from "./repository.js?v=20260820";
 
 const state = {
   snapshot: null,
