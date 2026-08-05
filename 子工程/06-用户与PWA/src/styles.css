@@ -43,9 +43,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .main-content { max-width: 1120px; margin: 0 auto; padding: 54px 24px 40px; }
 .view { min-height: calc(100vh - 190px); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-.external-view { min-height: calc(100dvh - var(--topbar-height, 64px) - var(--nav-height)); margin: -54px -24px -40px; }
-.external-view-shell { position: relative; min-height: calc(100dvh - var(--topbar-height, 64px) - var(--nav-height)); overflow: hidden; background: var(--paper); }
-.external-view-frame { display: block; width: 100%; height: calc(100dvh - var(--topbar-height, 64px) - var(--nav-height) - env(safe-area-inset-bottom)); min-height: 620px; border: 0; background: var(--paper); }
+.external-view { min-height: calc(100dvh - var(--topbar-height, 64px) - var(--nav-height)); width: 100%; max-width: 100%; min-width: 0; margin: -54px -24px -40px; overflow-x: hidden; overflow-x: clip; }
+.external-view-shell { position: relative; width: 100%; max-width: 100%; min-width: 0; min-height: calc(100dvh - var(--topbar-height, 64px) - var(--nav-height)); overflow-x: hidden; overflow-x: clip; overflow-y: hidden; background: var(--paper); }
+.external-view-frame { display: block; width: 100%; max-width: 100%; min-width: 0; height: calc(100dvh - var(--topbar-height, 64px) - var(--nav-height) - env(safe-area-inset-bottom)); min-height: 620px; border: 0; background: var(--paper); }
 .external-view-loading { position: absolute; z-index: 1; inset: 0; display: grid; align-content: start; gap: 14px; padding: 34px max(20px, calc((100% - 720px) / 2)); background: var(--paper); pointer-events: none; }
 .external-view-shell[data-state="ready"] .external-view-loading { display: none; }
 .loading-skeleton, .latest-release-skeleton, .recommendation-skeleton { display: block; border-radius: 6px; background: linear-gradient(90deg, rgba(255,255,255,.16), rgba(255,255,255,.4), rgba(255,255,255,.16)); background-size: 240% 100%; animation: shell-shimmer 1.5s ease-in-out infinite; }
