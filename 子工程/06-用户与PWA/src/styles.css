@@ -121,8 +121,9 @@ h3 { margin-bottom: 7px; font-size: 18px; }
 .detail-heading p, .detail-intro, .detail-note { color: var(--muted); line-height: 1.7; }
 .detail-heading p { margin-bottom: 0; font-size: 13px; }
 .detail-intro { margin: 18px 0; font-size: 14px; }
-.detail-gallery { display: flex; gap: 9px; overflow-x: auto; margin: 20px 0 4px; padding-bottom: 5px; scroll-snap-type: x mandatory; touch-action: pan-x; }
-.detail-gallery-item { align-items: center; background: var(--green-soft); display: grid; flex: 0 0 min(78%, 310px); aspect-ratio: 4 / 3; justify-items: center; overflow: hidden; scroll-snap-align: start; }
+.detail-gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin: 20px 0 4px; padding: 0; touch-action: pan-y; }
+.detail-gallery-item { align-items: center; background: var(--green-soft); border: 0; color: var(--muted); display: grid; min-width: 0; aspect-ratio: 1; justify-items: center; overflow: hidden; padding: 0; position: relative; width: 100%; }
+.detail-gallery-item:hover { outline: 2px solid var(--green); outline-offset: -2px; }
 .detail-gallery-item img { display: block; height: 100%; object-fit: cover; width: 100%; }
 .detail-gallery-item.is-broken { color: var(--muted); font-size: 12px; }
 .detail-image-fallback { display: none; }
@@ -280,7 +281,7 @@ h3 { margin-bottom: 7px; font-size: 18px; }
 .planner-fab-action { padding: 10px 12px; border: 0; background: transparent; color: var(--ink); text-align: left; font-size: 12px; font-weight: 800; }
 .planner-fab-action:hover { background: var(--green-soft); color: var(--green); }
 
-.modal-open { overflow: hidden; }
+.modal-open, body.image-viewer-open { overflow: hidden; }
 .modal-backdrop { position: fixed; z-index: 100; inset: 0; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(23, 35, 43, .5); }
 .modal { position: relative; width: min(430px, 100%); max-height: min(720px, 92vh); overflow-y: auto; padding: 27px 24px 24px; background: var(--surface); box-shadow: 0 25px 70px rgba(23, 35, 43, .2); }
 .modal-close { position: absolute; top: 15px; right: 16px; width: 32px; height: 32px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 22px; line-height: 1; }
@@ -298,6 +299,17 @@ h3 { margin-bottom: 7px; font-size: 18px; }
 .form-message.success { color: var(--green); }
 .form-message.error { color: var(--red); }
 .modal-links { display: flex; justify-content: space-between; gap: 12px; margin-top: 15px; }
+.image-lightbox { position: fixed; z-index: 300; inset: 0; display: grid; place-items: center; padding: 18px; background: rgba(11, 18, 22, .9); }
+.image-lightbox-panel { display: grid; grid-template-rows: minmax(0, 1fr) auto auto; width: min(920px, 100%); max-height: min(900px, 94vh); min-height: 0; gap: 12px; position: relative; }
+.image-lightbox-stage { display: grid; place-items: center; min-height: 0; max-height: min(76vh, 720px); overflow: auto; overscroll-behavior: contain; touch-action: pinch-zoom; }
+.image-lightbox-stage img { display: block; max-width: 100%; max-height: min(76vh, 720px); object-fit: contain; transform-origin: center; transition: transform .16s ease; user-select: none; }
+.image-lightbox-close { position: absolute; z-index: 1; top: -4px; right: 0; width: 40px; height: 40px; border: 1px solid rgba(255, 255, 255, .32); border-radius: 50%; background: rgba(0, 0, 0, .35); color: #fff; font-size: 27px; line-height: 1; }
+.image-lightbox-close:hover { background: rgba(255, 255, 255, .16); }
+.image-lightbox-toolbar { display: flex; justify-content: center; gap: 8px; }
+.image-lightbox-control { min-width: 40px; height: 36px; border: 1px solid rgba(255, 255, 255, .3); border-radius: 6px; background: rgba(0, 0, 0, .28); color: #fff; font-size: 20px; line-height: 1; }
+.image-lightbox-control:hover { background: rgba(255, 255, 255, .16); }
+.image-lightbox-reset { min-width: 52px; font-size: 12px; font-weight: 800; }
+.image-lightbox-caption { max-width: 100%; margin: 0; color: rgba(255, 255, 255, .84); font-size: 12px; line-height: 1.45; text-align: center; overflow-wrap: anywhere; }
 .install-steps { display: grid; gap: 14px; }
 .install-steps > div { display: grid; grid-template-columns: 31px 1fr; column-gap: 10px; row-gap: 3px; padding: 13px 0; border-top: 1px solid var(--line); }
 .install-steps > div span { grid-row: span 2; color: var(--orange); font-size: 12px; font-weight: 800; }

@@ -69,8 +69,14 @@ const elements = {
   backdrop: $("#modalBackdrop"),
   authModal: $("#authModal"),
   tripModal: $("#tripModal"),
-  installModal: $("#installModal")
+  installModal: $("#installModal"),
+  imageLightbox: $("#imageLightbox"),
+  imageLightboxImage: $("#imageLightboxImage"),
+  imageLightboxCaption: $("#imageLightboxTitle")
 };
+
+let imageLightboxScale = 1;
+let imageLightboxTrigger = null;
 
 function showToast(message) {
   elements.toast.textContent = message;
@@ -131,6 +137,42 @@ function closeModal() {
   elements.backdrop.hidden = true;
   [elements.authModal, elements.tripModal, elements.installModal].forEach((item) => { item.hidden = true; item.innerHTML = ""; });
   document.body.classList.remove("modal-open");
+}
+
+function renderImageLightboxScale() {
+  if (!elements.imageLightboxImage) return;
+  elements.imageLightboxImage.style.transform = `scale(${imageLightboxScale})`;
+}
+
+function openImageLightbox(trigger) {
+  const url = mediaUrl(trigger?.dataset.imageUrl);
+  if (!url || !elements.imageLightbox) return;
+  imageLightboxTrigger = trigger;
+  imageLightboxScale = 1;
+  elements.imageLightboxImage.src = url;
+  elements.imageLightboxImage.alt = trigger.dataset.imageAlt || "景点图片";
+  elements.imageLightboxCaption.textContent = trigger.dataset.imageAlt || "景点图片";
+  renderImageLightboxScale();
+  elements.imageLightbox.hidden = false;
+  document.body.classList.add("image-viewer-open");
+  elements.imageLightbox.querySelector("[data-image-close]")?.focus();
+}
+
+function closeImageLightbox() {
+  if (!elements.imageLightbox || elements.imageLightbox.hidden) return;
+  elements.imageLightbox.hidden = true;
+  elements.imageLightboxImage.removeAttribute("src");
+  elements.imageLightboxImage.alt = "";
+  elements.imageLightboxCaption.textContent = "";
+  document.body.classList.remove("image-viewer-open");
+  imageLightboxTrigger?.focus();
+  imageLightboxTrigger = null;
+}
+
+function changeImageLightboxScale(action) {
+  if (action === "reset") imageLightboxScale = 1;
+  else imageLightboxScale = Math.max(1, Math.min(3, imageLightboxScale + (action === "in" ? 0.25 : -0.25)));
+  renderImageLightboxScale();
 }
 
 function externalViewUrl(view, route = {}) {
@@ -536,7 +578,7 @@ function detailGallery(item, detail) {
     .map((photo) => ({ ...photo, url: mediaUrl(photo?.url) }))
     .filter((photo) => photo?.media_type === "image" && photo.url)
     .slice(0, 6);
-  if (media.length) return `<div class="detail-gallery">${media.map((photo) => `<div class="detail-gallery-item"><img src="${escapeHtml(photo.url)}" alt="${escapeHtml(photo.alt_text || item.name_zh)}" loading="lazy" decoding="async" onerror="this.parentElement.classList.add('is-broken');this.remove()"><span class="detail-image-fallback" aria-hidden="true">图片暂不可用</span></div>`).join("")}</div>`;
+  if (media.length) return `<div class="detail-gallery" aria-label="${escapeHtml(item.name_zh)} 图片">${media.map((photo) => { const alt = photo.alt_text || item.name_zh; return `<button class="detail-gallery-item" type="button" data-image-open data-image-url="${escapeHtml(photo.url)}" data-image-alt="${escapeHtml(alt)}" aria-label="查看 ${escapeHtml(alt)}"><img src="${escapeHtml(photo.url)}" alt="${escapeHtml(alt)}" loading="lazy" decoding="async" onerror="this.parentElement.classList.add('is-broken');this.remove()"><span class="detail-image-fallback" aria-hidden="true">图片暂不可用</span></button>`; }).join("")}</div>`;
   return `<div class="detail-media-placeholder" aria-hidden="true"></div>`;
 }
 
@@ -1512,6 +1554,12 @@ function bindEvents() {
       else if (fabAction.dataset.go) setView(fabAction.dataset.go);
       return;
     }
+    const imageOpen = event.target.closest("[data-image-open]");
+    if (imageOpen) { openImageLightbox(imageOpen); return; }
+    const imageClose = event.target.closest("[data-image-close]");
+    if (imageClose) { closeImageLightbox(); return; }
+    const imageZoom = event.target.closest("[data-image-zoom]");
+    if (imageZoom) { changeImageLightboxScale(imageZoom.dataset.imageZoom); return; }
     if (state.plannerFabOpen && !event.target.closest("#plannerFab")) closePlannerFab();
     const close = event.target.closest("[data-close]");
     if (close) closeModal();
@@ -1561,7 +1609,14 @@ function bindEvents() {
     if (event.target.closest("[data-rec-back]")) backRecommendation();
   });
   elements.backdrop.addEventListener("click", (event) => { if (event.target === elements.backdrop) closeModal(); });
+  elements.imageLightbox.addEventListener("click", (event) => { if (event.target === elements.imageLightbox) closeImageLightbox(); });
+  elements.imageLightbox.querySelector("[data-image-stage]")?.addEventListener("wheel", (event) => {
+    if (!event.ctrlKey && Math.abs(event.deltaY) < 1) return;
+    event.preventDefault();
+    changeImageLightboxScale(event.deltaY < 0 ? "in" : "out");
+  }, { passive: false });
   document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !elements.imageLightbox.hidden) { closeImageLightbox(); return; }
     if (event.key !== "Escape") return;
     if (state.plannerFabOpen) { closePlannerFab(); return; }
     if (!elements.backdrop.hidden) closeModal();
@@ -1592,7 +1647,7 @@ async function boot() {
   await hydrate();
   if (state.view === "discover") scheduleExternalPrefetch();
   if (state.recovery) authForm("update");
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("../sw.js?v=20260823", { scope: "../" }).catch(() => {});
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("../sw.js?v=20260824", { scope: "../" }).catch(() => {});
 }
 
 boot();
