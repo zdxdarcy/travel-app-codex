@@ -803,7 +803,15 @@ async function openLatestCountry(countryId) {
   rec.loading = true;
   rec.level = "cities";
   rec.continent = null;
-  rec.country = item.country;
+  let country = item.country;
+  if (!country.directory_level && country.region_id) {
+    try {
+      country = (await client.listCountries(country.region_id)).find((entry) => entry.id === country.id) || country;
+    } catch {
+      // The directory request below will surface the actionable error.
+    }
+  }
+  rec.country = country;
   rec.region = null;
   rec.city = null;
   rec.items = [];
@@ -811,7 +819,7 @@ async function openLatestCountry(countryId) {
   rec.detailId = null;
   renderRecommendations();
   try {
-    const directory = await loadCountryDirectory(item.country);
+    const directory = await loadCountryDirectory(country);
     rec.level = directory.level;
     const items = directory.items;
     if (!items.length) throw new Error("该国家暂时没有可用城市");
