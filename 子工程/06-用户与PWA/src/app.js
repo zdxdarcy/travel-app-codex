@@ -392,7 +392,7 @@ function renderLatestRelease() {
   } else {
     content.innerHTML = latest.items.map((item) => {
       const cities = (item.cities || []).slice(0, 3).map((city) => city.name_zh || city.name_en || city.slug).filter(Boolean);
-      return `<button class="latest-release-card" type="button" data-latest-country="${escapeHtml(item.id)}" aria-label="查看 ${escapeHtml(item.country.name_zh)} 城市目录"><strong>${escapeHtml(item.country.name_zh)}</strong><span class="latest-release-city">${escapeHtml(cities.join(" · ") || "城市目录待更新")}</span><span class="latest-release-meta">进入国家城市目录</span></button>`;
+      return `<button class="latest-release-card" type="button" data-latest-country="${escapeHtml(item.id)}" aria-label="查看 ${escapeHtml(item.country.name_zh)} 国家目录"><strong>${escapeHtml(item.country.name_zh)}</strong><span class="latest-release-city">${escapeHtml(cities.join(" · ") || "城市目录待更新")}</span><span class="latest-release-meta">进入国家目录</span></button>`;
     }).join("");
     content.removeAttribute("aria-busy");
   }
@@ -1579,7 +1579,7 @@ async function boot() {
   await hydrate();
   if (state.view === "discover") scheduleExternalPrefetch();
   if (state.recovery) authForm("update");
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("../sw.js?v=20260818", { scope: "../" }).catch(() => {});
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("../sw.js?v=20260821", { scope: "../" }).catch(() => {});
 }
 
 boot();
