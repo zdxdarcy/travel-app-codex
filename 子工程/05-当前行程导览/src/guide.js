@@ -410,45 +410,11 @@ function bindDetailInteractions() {
     cancelAnimationFrame(detailSyncFrame);
     detailSyncFrame = requestAnimationFrame(syncDetailSelection);
   };
-  let gesture = null;
-  const onPointerDown = (event) => {
-    if (!event.isPrimary || event.pointerType === "mouse" || !event.target.closest("[data-detail-card]")) return;
-    gesture = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, startScrollLeft: deck.scrollLeft, axis: null };
-  };
-  const onPointerMove = (event) => {
-    if (!gesture || event.pointerId !== gesture.pointerId) return;
-    const deltaX = event.clientX - gesture.startX;
-    const deltaY = event.clientY - gesture.startY;
-    if (!gesture.axis) {
-      if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) < 8) return;
-      gesture.axis = Math.abs(deltaX) > Math.abs(deltaY) ? "horizontal" : "vertical";
-      deck.classList.toggle("is-vertical-gesture", gesture.axis === "vertical");
-    }
-    if (gesture.axis === "vertical" && deck.scrollLeft !== gesture.startScrollLeft) deck.scrollLeft = gesture.startScrollLeft;
-  };
-  const onPointerEnd = (event) => {
-    if (!gesture || event.pointerId !== gesture.pointerId) return;
-    const lockedLeft = gesture.startScrollLeft;
-    const wasVertical = gesture.axis === "vertical";
-    gesture = null;
-    if (wasVertical) deck.scrollLeft = lockedLeft;
-    requestAnimationFrame(() => deck.classList.remove("is-vertical-gesture"));
-  };
   deck.addEventListener("scroll", schedule, { passive: true });
   window.addEventListener("resize", schedule, { passive: true });
-  deck.addEventListener("pointerdown", onPointerDown, { passive: true });
-  deck.addEventListener("pointermove", onPointerMove, { passive: true });
-  deck.addEventListener("pointerup", onPointerEnd, { passive: true });
-  deck.addEventListener("pointercancel", onPointerEnd, { passive: true });
   detailScrollCleanup = () => {
     deck.removeEventListener("scroll", schedule);
     window.removeEventListener("resize", schedule);
-    deck.removeEventListener("pointerdown", onPointerDown);
-    deck.removeEventListener("pointermove", onPointerMove);
-    deck.removeEventListener("pointerup", onPointerEnd);
-    deck.removeEventListener("pointercancel", onPointerEnd);
-    deck.classList.remove("is-vertical-gesture");
-    gesture = null;
     cancelAnimationFrame(detailSyncFrame);
   };
 }
