@@ -430,14 +430,16 @@ function bindDetailInteractions() {
   };
   let swipe = null;
   const isInteractive = (target) => target.closest("a, button, input, textarea, [contenteditable='true'], .photo-strip, .attraction-nav-scroll");
-  const onPointerDown = (event) => {
-    if (usesWideDetailLayout() || event.pointerType === "mouse" || isInteractive(event.target)) return;
-    swipe = { id: event.pointerId, startX: event.clientX, startY: event.clientY, startLeft: deck.scrollLeft, axis: null };
+  const onTouchStart = (event) => {
+    const touch = event.touches[0];
+    if (!touch || usesWideDetailLayout() || isInteractive(event.target)) return;
+    swipe = { startX: touch.clientX, startY: touch.clientY, startLeft: deck.scrollLeft, axis: null };
   };
-  const onPointerMove = (event) => {
-    if (!swipe || swipe.id !== event.pointerId || usesWideDetailLayout()) return;
-    const deltaX = event.clientX - swipe.startX;
-    const deltaY = event.clientY - swipe.startY;
+  const onTouchMove = (event) => {
+    const touch = event.touches[0];
+    if (!touch || !swipe || usesWideDetailLayout()) return;
+    const deltaX = touch.clientX - swipe.startX;
+    const deltaY = touch.clientY - swipe.startY;
     if (!swipe.axis) {
       const absX = Math.abs(deltaX);
       const absY = Math.abs(deltaY);
@@ -450,15 +452,14 @@ function bindDetailInteractions() {
         return;
       }
       swipe.axis = "horizontal";
-      deck.setPointerCapture?.(event.pointerId);
     }
     if (swipe.axis !== "horizontal") return;
     if (event.cancelable) event.preventDefault();
     const maxLeft = Math.max(0, deck.scrollWidth - deck.clientWidth);
     deck.scrollLeft = Math.max(0, Math.min(swipe.startLeft - deltaX, maxLeft));
   };
-  const finishSwipe = (event) => {
-    if (!swipe || swipe.id !== event.pointerId) return;
+  const finishSwipe = () => {
+    if (!swipe) return;
     const horizontal = swipe.axis === "horizontal";
     swipe = null;
     if (!horizontal || usesWideDetailLayout()) return;
@@ -468,18 +469,18 @@ function bindDetailInteractions() {
   deck.addEventListener("scroll", schedule, { passive: true });
   window.addEventListener("resize", schedule, { passive: true });
   window.addEventListener("scroll", schedule, { passive: true });
-  deck.addEventListener("pointerdown", onPointerDown, { passive: true });
-  deck.addEventListener("pointermove", onPointerMove, { passive: false });
-  deck.addEventListener("pointerup", finishSwipe, { passive: true });
-  deck.addEventListener("pointercancel", finishSwipe, { passive: true });
+  deck.addEventListener("touchstart", onTouchStart, { passive: true });
+  deck.addEventListener("touchmove", onTouchMove, { passive: false });
+  deck.addEventListener("touchend", finishSwipe, { passive: true });
+  deck.addEventListener("touchcancel", finishSwipe, { passive: true });
   detailScrollCleanup = () => {
     deck.removeEventListener("scroll", schedule);
     window.removeEventListener("resize", schedule);
     window.removeEventListener("scroll", schedule);
-    deck.removeEventListener("pointerdown", onPointerDown);
-    deck.removeEventListener("pointermove", onPointerMove);
-    deck.removeEventListener("pointerup", finishSwipe);
-    deck.removeEventListener("pointercancel", finishSwipe);
+    deck.removeEventListener("touchstart", onTouchStart);
+    deck.removeEventListener("touchmove", onTouchMove);
+    deck.removeEventListener("touchend", finishSwipe);
+    deck.removeEventListener("touchcancel", finishSwipe);
     cancelAnimationFrame(detailSyncFrame);
   };
 }
