@@ -18,6 +18,7 @@ const $ = (selector, root = document) => root.querySelector(selector);
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char]));
 const statusLabels = { not_started: "未开始", completed: "已完成", skipped: "已跳过" };
 const modeLabels = { inside: "入内", outside: "外部", none: "不安排" };
+const usesWideDetailLayout = () => window.matchMedia("(min-width: 761px)").matches;
 
 function isDetailItem(item) {
   // Every normalized trip item belongs in the ordered card stream. Keeping a
@@ -376,15 +377,32 @@ function syncDetailSelection() {
   if (!deck) return;
   const cards = [...deck.querySelectorAll("[data-detail-card]")];
   if (!cards.length) return;
-  const deckRect = deck.getBoundingClientRect();
-  const center = deckRect.left + deck.clientWidth / 2;
-  const index = cards.reduce((best, card, candidate) => {
-    const bestRect = cards[best].getBoundingClientRect();
-    const candidateRect = card.getBoundingClientRect();
-    const bestDistance = Math.abs(bestRect.left + bestRect.width / 2 - center);
-    const candidateDistance = Math.abs(candidateRect.left + candidateRect.width / 2 - center);
-    return candidateDistance < bestDistance ? candidate : best;
-  }, 0);
+  const index = usesWideDetailLayout()
+    ? (() => {
+      const topbarBottom = $(".topbar")?.getBoundingClientRect().bottom || 0;
+      const anchor = topbarBottom + 36;
+      const containing = cards.findIndex((card) => {
+        const rect = card.getBoundingClientRect();
+        return rect.top <= anchor && rect.bottom > anchor;
+      });
+      if (containing >= 0) return containing;
+      return cards.reduce((best, card, candidate) => {
+        const bestDistance = Math.abs(cards[best].getBoundingClientRect().top - anchor);
+        const candidateDistance = Math.abs(card.getBoundingClientRect().top - anchor);
+        return candidateDistance < bestDistance ? candidate : best;
+      }, 0);
+    })()
+    : (() => {
+      const deckRect = deck.getBoundingClientRect();
+      const center = deckRect.left + deck.clientWidth / 2;
+      return cards.reduce((best, card, candidate) => {
+        const bestRect = cards[best].getBoundingClientRect();
+        const candidateRect = card.getBoundingClientRect();
+        const bestDistance = Math.abs(bestRect.left + bestRect.width / 2 - center);
+        const candidateDistance = Math.abs(candidateRect.left + candidateRect.width / 2 - center);
+        return candidateDistance < bestDistance ? candidate : best;
+      }, 0);
+    })();
   const itemId = cards[index].dataset.detailCard;
   cards.forEach((card, cardIndex) => card.classList.toggle("is-selected", cardIndex === index));
   document.querySelectorAll("[data-detail-chip]").forEach((chip) => {
@@ -410,11 +428,53 @@ function bindDetailInteractions() {
     cancelAnimationFrame(detailSyncFrame);
     detailSyncFrame = requestAnimationFrame(syncDetailSelection);
   };
+  let swipe = null;
+  const isInteractive = (target) => target.closest("a, button, input, textarea, [contenteditable='true'], .photo-strip, .attraction-nav-scroll");
+  const onPointerDown = (event) => {
+    if (usesWideDetailLayout() || event.pointerType === "mouse" || isInteractive(event.target)) return;
+    swipe = { id: event.pointerId, startX: event.clientX, startY: event.clientY, startLeft: deck.scrollLeft, axis: null };
+  };
+  const onPointerMove = (event) => {
+    if (!swipe || swipe.id !== event.pointerId || usesWideDetailLayout()) return;
+    const deltaX = event.clientX - swipe.startX;
+    const deltaY = event.clientY - swipe.startY;
+    if (!swipe.axis) {
+      if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) < 8) return;
+      if (Math.abs(deltaY) >= Math.abs(deltaX)) {
+        swipe.axis = "vertical";
+        return;
+      }
+      swipe.axis = "horizontal";
+      deck.setPointerCapture?.(event.pointerId);
+    }
+    if (swipe.axis !== "horizontal") return;
+    if (event.cancelable) event.preventDefault();
+    const maxLeft = Math.max(0, deck.scrollWidth - deck.clientWidth);
+    deck.scrollLeft = Math.max(0, Math.min(swipe.startLeft - deltaX, maxLeft));
+  };
+  const finishSwipe = (event) => {
+    if (!swipe || swipe.id !== event.pointerId) return;
+    const horizontal = swipe.axis === "horizontal";
+    swipe = null;
+    if (!horizontal || usesWideDetailLayout()) return;
+    const index = Math.round(deck.scrollLeft / Math.max(1, deck.clientWidth));
+    deck.scrollTo({ left: index * deck.clientWidth, behavior: "smooth" });
+  };
   deck.addEventListener("scroll", schedule, { passive: true });
   window.addEventListener("resize", schedule, { passive: true });
+  window.addEventListener("scroll", schedule, { passive: true });
+  deck.addEventListener("pointerdown", onPointerDown, { passive: true });
+  deck.addEventListener("pointermove", onPointerMove, { passive: false });
+  deck.addEventListener("pointerup", finishSwipe, { passive: true });
+  deck.addEventListener("pointercancel", finishSwipe, { passive: true });
   detailScrollCleanup = () => {
     deck.removeEventListener("scroll", schedule);
     window.removeEventListener("resize", schedule);
+    window.removeEventListener("scroll", schedule);
+    deck.removeEventListener("pointerdown", onPointerDown);
+    deck.removeEventListener("pointermove", onPointerMove);
+    deck.removeEventListener("pointerup", finishSwipe);
+    deck.removeEventListener("pointercancel", finishSwipe);
     cancelAnimationFrame(detailSyncFrame);
   };
 }
@@ -423,6 +483,11 @@ function scrollToDetailCard(card, { behavior = "smooth", updateRoute = true } = 
   if (!card) return;
   const deck = card.closest("[data-detail-deck]");
   if (updateRoute) updateDetailRoute(card.dataset.detailCard);
+  if (usesWideDetailLayout()) {
+    card.scrollIntoView({ block: "start", inline: "nearest", behavior: behavior === "instant" ? "auto" : behavior });
+    requestAnimationFrame(syncDetailSelection);
+    return;
+  }
   if (deck) {
     const deckRect = deck.getBoundingClientRect();
     const cardRect = card.getBoundingClientRect();

@@ -77,6 +77,8 @@ const elements = {
 
 let imageLightboxScale = 1;
 let imageLightboxTrigger = null;
+let recommendationDetailCleanup = () => {};
+const usesWideRecommendationLayout = () => window.matchMedia("(min-width: 761px)").matches;
 
 function showToast(message) {
   elements.toast.textContent = message;
@@ -628,18 +630,32 @@ function syncRecommendationDetailSelection() {
   if (!deck) return;
   const cards = [...deck.querySelectorAll("[data-rec-detail-card]")];
   if (!cards.length) return;
-  // Compare card centers against the visible deck center. Using offsetLeft
-  // versus scrollLeft is wrong when the deck has centering padding or an
-  // edge-to-edge mobile margin, and can select a neighboring/middle card.
-  const deckRect = deck.getBoundingClientRect();
-  const viewportCenter = deckRect.left + deck.clientWidth / 2;
-  const index = cards.reduce((best, card, candidate) => {
-    const bestRect = cards[best].getBoundingClientRect();
-    const candidateRect = card.getBoundingClientRect();
-    const bestDistance = Math.abs(bestRect.left + bestRect.width / 2 - viewportCenter);
-    const candidateDistance = Math.abs(candidateRect.left + candidateRect.width / 2 - viewportCenter);
-    return candidateDistance < bestDistance ? candidate : best;
-  }, 0);
+  const index = usesWideRecommendationLayout()
+    ? (() => {
+      const topbarBottom = document.querySelector(".topbar")?.getBoundingClientRect().bottom || 0;
+      const anchor = topbarBottom + 36;
+      const containing = cards.findIndex((card) => {
+        const rect = card.getBoundingClientRect();
+        return rect.top <= anchor && rect.bottom > anchor;
+      });
+      if (containing >= 0) return containing;
+      return cards.reduce((best, card, candidate) => {
+        const bestDistance = Math.abs(cards[best].getBoundingClientRect().top - anchor);
+        const candidateDistance = Math.abs(card.getBoundingClientRect().top - anchor);
+        return candidateDistance < bestDistance ? candidate : best;
+      }, 0);
+    })()
+    : (() => {
+      const deckRect = deck.getBoundingClientRect();
+      const viewportCenter = deckRect.left + deck.clientWidth / 2;
+      return cards.reduce((best, card, candidate) => {
+        const bestRect = cards[best].getBoundingClientRect();
+        const candidateRect = card.getBoundingClientRect();
+        const bestDistance = Math.abs(bestRect.left + bestRect.width / 2 - viewportCenter);
+        const candidateDistance = Math.abs(candidateRect.left + candidateRect.width / 2 - viewportCenter);
+        return candidateDistance < bestDistance ? candidate : best;
+      }, 0);
+    })();
   const item = state.recommendations.items[index];
   if (!item) return;
   state.recommendations.detailId = item.id;
@@ -674,6 +690,13 @@ function scrollRecommendationDetail(id, { behavior = "smooth" } = {}) {
   if (!card) return;
   const deck = card.closest("[data-rec-detail-deck]");
   const scrollBehavior = behavior === "instant" ? "auto" : behavior;
+  if (usesWideRecommendationLayout()) {
+    card.scrollIntoView({ block: "start", inline: "nearest", behavior: scrollBehavior });
+    state.recommendations.detailId = id;
+    state.recommendations.detail = state.recommendations.items.find((item) => item.id === id) || state.recommendations.detail;
+    if (behavior === "instant") syncRecommendationDetailSelection();
+    return;
+  }
   if (deck) {
     // Derive the scroll delta from rendered geometry so padding, margins and
     // responsive card widths are handled consistently at every breakpoint.
@@ -691,6 +714,7 @@ function scrollRecommendationDetail(id, { behavior = "smooth" } = {}) {
 }
 
 function bindRecommendationDetailInteractions() {
+  recommendationDetailCleanup();
   const deck = document.querySelector("[data-rec-detail-deck]");
   if (!deck) return;
   let frame = 0;
@@ -700,6 +724,13 @@ function bindRecommendationDetailInteractions() {
   };
   deck.addEventListener("scroll", schedule, { passive: true });
   window.addEventListener("resize", schedule, { passive: true });
+  window.addEventListener("scroll", schedule, { passive: true });
+  recommendationDetailCleanup = () => {
+    deck.removeEventListener("scroll", schedule);
+    window.removeEventListener("resize", schedule);
+    window.removeEventListener("scroll", schedule);
+    cancelAnimationFrame(frame);
+  };
   requestAnimationFrame(syncRecommendationDetailSelection);
 }
 
@@ -726,6 +757,7 @@ function renderRecommendations() {
     return;
   }
   const { level, items, detail } = state.recommendations;
+  if (level !== "detail") recommendationDetailCleanup();
   if (level === "detail" && detail) {
     content.innerHTML = renderRecommendationDetailDeck();
     content.removeAttribute("aria-busy");
