@@ -312,16 +312,25 @@ async function saveTrip(trip) {
 }
 
 function dateAfter(base, offset) {
-  const date = new Date(`${base}T00:00:00`);
-  date.setDate(date.getDate() + offset);
+  const [year, month, day] = String(base).split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + offset);
   return date.toISOString().slice(0, 10);
+}
+
+function localDateString(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 async function saveRecommendedRouteAsTrip(route, routeDays) {
   if (!session?.user?.id) throw new Error("AUTH_REQUIRED");
   const days = Array.isArray(routeDays) ? routeDays : [];
-  const startDate = new Date().toISOString().slice(0, 10);
-  const endDate = dateAfter(startDate, Math.max(0, Number(route?.duration_days || days.length || 1) - 1));
+  const routeDayCount = Math.max(1, days.length || Number(route?.duration_days) || 1);
+  const startDate = localDateString();
+  const endDate = dateAfter(startDate, routeDayCount - 1);
   const tripRows = await table("trips", {
     method: "POST",
     body: JSON.stringify({

@@ -1,4 +1,4 @@
-import { supabaseClient as client } from "./supabase-client.js?v=20260835";
+import { supabaseClient as client } from "./supabase-client.js?v=20260836";
 import { cacheKeys, readCache, writeCache } from "./idb-cache.js";
 
 const state = {
