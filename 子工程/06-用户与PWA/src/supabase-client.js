@@ -311,6 +311,65 @@ async function saveTrip(trip) {
   return normalizeTrip(Array.isArray(rows) ? rows[0] : rows);
 }
 
+function dateAfter(base, offset) {
+  const date = new Date(`${base}T00:00:00`);
+  date.setDate(date.getDate() + offset);
+  return date.toISOString().slice(0, 10);
+}
+
+async function saveRecommendedRouteAsTrip(route, routeDays) {
+  if (!session?.user?.id) throw new Error("AUTH_REQUIRED");
+  const days = Array.isArray(routeDays) ? routeDays : [];
+  const startDate = new Date().toISOString().slice(0, 10);
+  const endDate = dateAfter(startDate, Math.max(0, Number(route?.duration_days || days.length || 1) - 1));
+  const tripRows = await table("trips", {
+    method: "POST",
+    body: JSON.stringify({
+      user_id: session.user.id,
+      name: route?.name_zh || "推荐路线",
+      start_date: startDate,
+      end_date: endDate,
+      status: "planned",
+      notes: JSON.stringify({ text: "由推荐路线加入", planner: { source: "recommended-route", route_id: route?.id || null, route_slug: route?.slug || "" } })
+    })
+  });
+  const trip = normalizeTrip(Array.isArray(tripRows) ? tripRows[0] : tripRows);
+  if (!trip?.id) throw new Error("创建行程失败：未返回行程 ID");
+  for (let dayIndex = 0; dayIndex < days.length; dayIndex += 1) {
+    const day = days[dayIndex];
+    const dayRows = await table("trip_days", {
+      method: "POST",
+      body: JSON.stringify({
+        trip_id: trip.id,
+        day_number: dayIndex + 1,
+        day_date: dateAfter(startDate, dayIndex),
+        notes: JSON.stringify({ text: day.notes || "", planner: { source: "recommended-route", overnightCity: day.overnight_city_name_snapshot || "" } })
+      })
+    });
+    const dayId = Array.isArray(dayRows) ? dayRows[0]?.id : dayRows?.id;
+    if (!dayId) throw new Error(`创建第 ${dayIndex + 1} 天失败：未返回日期 ID`);
+    const items = (day.items || []).map((item, index) => ({
+      trip_day_id: dayId,
+      item_type: "attraction",
+      attraction_id: item.attraction_id || null,
+      title_snapshot: item.title_snapshot || "未命名景点",
+      city_name_snapshot: item.city_name_snapshot || null,
+      planned_order: index + 1,
+      visit_mode: "inside",
+      duration_minutes: item.duration_minutes || null,
+      notes: item.notes || null,
+      metadata: { source: "recommended-route", route_id: route?.id || null, route_day_id: day.id || null, transit_notes: item.transit_notes || "" }
+    }));
+    if (items.length) await table("trip_items", { method: "POST", body: JSON.stringify(items) });
+  }
+  const selections = (days.flatMap((day) => day.items || []))
+    .filter((item) => item.attraction_id)
+    .map((item) => ({ countryId: route.country_id, attractionId: item.attraction_id, visitMode: "inside", note: `来自推荐路线：${route?.name_zh || "推荐路线"}` }));
+  for (const selection of selections) await saveSelection(selection);
+  await setActiveTrip(trip.id);
+  return { trip, selections };
+}
+
 async function deleteTrip(id) {
   return table(`trips?id=eq.${encodeURIComponent(id)}`, { method: "DELETE" });
 }
@@ -361,6 +420,7 @@ export const supabaseClient = {
   getActiveTripId,
   setActiveTrip,
   saveTrip,
+  saveRecommendedRouteAsTrip,
   deleteTrip,
   listContinents,
   listCountries,

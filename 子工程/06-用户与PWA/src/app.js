@@ -1,4 +1,4 @@
-import { supabaseClient as client } from "./supabase-client.js?v=20260834";
+import { supabaseClient as client } from "./supabase-client.js?v=20260835";
 import { cacheKeys, readCache, writeCache } from "./idb-cache.js";
 
 const state = {
@@ -644,7 +644,29 @@ function renderRecommendedRouteDetail() {
     const items = (day.items || []).map((item) => `<li class="route-stop"><button class="route-stop-open" type="button" data-route-attraction="${escapeHtml(item.attraction_id)}"><span class="route-stop-order">${escapeHtml(item.planned_order)}</span><span class="route-stop-copy"><strong>${escapeHtml(item.title_snapshot)}</strong><span>${escapeHtml(item.city_name_snapshot)}${item.duration_minutes ? ` · 约 ${escapeHtml(item.duration_minutes)} 分钟` : ""}</span>${item.notes ? `<p>${escapeHtml(item.notes)}</p>` : ""}${item.transit_notes ? `<small>${escapeHtml(item.transit_notes)}</small>` : ""}</span></button></li>`).join("");
     return `<section class="route-day"><header class="route-day-heading"><div><span class="eyebrow">DAY ${escapeHtml(day.day_number)}</span><h3>${escapeHtml(day.title_zh)}</h3>${day.title_en ? `<p>${escapeHtml(day.title_en)}</p>` : ""}</div>${day.overnight_city_name_snapshot ? `<span class="route-overnight">住 ${escapeHtml(day.overnight_city_name_snapshot)}</span>` : ""}</header>${day.summary_zh ? `<p class="route-day-summary">${escapeHtml(day.summary_zh)}</p>` : ""}<ol class="route-stop-list">${items}</ol>${day.notes ? `<p class="route-day-notes">${escapeHtml(day.notes)}</p>` : ""}</section>`;
   }).join("");
-  return `<article class="route-detail-view"><button class="text-button small" type="button" data-rec-back>← 返回推荐路线</button><header class="route-detail-heading"><div><p class="eyebrow">RECOMMENDED ROUTE</p><h2>${escapeHtml(route?.name_zh || "推荐路线")}</h2><p>${escapeHtml(route?.name_en || "")}</p></div><span class="recommendation-city-count">${escapeHtml(route?.duration_days || days.length)} 天</span></header><div class="route-detail-meta"><span>${escapeHtml(route?.area_name_zh || "")}</span><span>AI 生成 · 已按景点库校验</span></div><p class="route-summary">${escapeHtml(route?.summary_zh || "")}</p><div class="route-day-list">${dayMarkup || `<div class="recommendation-empty"><strong>暂无日程</strong><span>这条路线暂时没有可显示的安排。</span></div>`}</div></article>`;
+  return `<article class="route-detail-view"><button class="text-button small" type="button" data-rec-back>← 返回推荐路线</button><header class="route-detail-heading"><div><p class="eyebrow">RECOMMENDED ROUTE</p><h2>${escapeHtml(route?.name_zh || "推荐路线")}</h2><p>${escapeHtml(route?.name_en || "")}</p></div><span class="recommendation-city-count">${escapeHtml(route?.duration_days || days.length)} 天</span></header><div class="route-detail-meta"><span>${escapeHtml(route?.area_name_zh || "")}</span><span>点击➕加入清单 · 已按景点库校验</span></div><p class="route-summary">${escapeHtml(route?.summary_zh || "")}</p><div class="route-day-list">${dayMarkup || `<div class="recommendation-empty"><strong>暂无日程</strong><span>这条路线暂时没有可显示的安排。</span></div>`}</div></article>`;
+}
+
+async function addRecommendedRouteToTrip() {
+  const rec = state.recommendations;
+  if (!rec.route || rec.level !== "route-detail") return;
+  if (!client.user) {
+    authForm("login", "登录后即可将整段推荐路线保存为自己的行程，并同步景点清单。");
+    return;
+  }
+  closePlannerFab();
+  try {
+    const result = await client.saveRecommendedRouteAsTrip(rec.route, rec.routeDays);
+    state.trips = [result.trip, ...state.trips.filter((trip) => trip.id !== result.trip.id)];
+    state.activeTripId = result.trip.id;
+    state.countries = [...state.countries.filter((row) => !result.selections.some((item) => item.attractionId === row.attractionId)), ...result.selections.map((item) => normalizeSelection({ ...item, source: "cloud", updatedAt: new Date().toISOString() }))];
+    persistGuest();
+    void writeCache(scopedCacheKey(cacheKeys.trips), { cachedAt: Date.now(), items: state.trips, activeTripId: state.activeTripId });
+    renderAll();
+    showToast(`已加入清单：${result.selections.length} 个景点，并保存为当前行程`);
+  } catch (error) {
+    showToast(`加入行程失败：${client.authError(error)}`);
+  }
 }
 
 function syncRecommendationDetailSelection() {
@@ -784,6 +806,7 @@ function loadRecommendationDetailExtrasFor(item) {
 function renderRecommendations() {
   const content = $("#recommendationContent");
   if (!content) return;
+  renderPlannerFab();
   recommendationBreadcrumb();
   if (state.recommendations.loading) {
     content.innerHTML = `<div class="recommendation-skeleton-grid" aria-hidden="true"><span class="recommendation-skeleton"></span><span class="recommendation-skeleton"></span><span class="recommendation-skeleton"></span><span class="recommendation-skeleton"></span></div>`;
@@ -1642,8 +1665,10 @@ function renderPlannerFab() {
   const root = $("#plannerFab");
   const menu = $("#plannerFabMenu");
   const toggle = root?.querySelector("[data-fab-toggle]");
+  const routeAction = menu?.querySelector("[data-add-route]");
   if (!root || !menu || !toggle) return;
   const visible = state.view === "discover";
+  if (routeAction) routeAction.hidden = !(visible && state.recommendations.level === "route-detail" && state.recommendations.route);
   root.hidden = !visible;
   menu.hidden = !visible || !state.plannerFabOpen;
   toggle.setAttribute("aria-expanded", String(visible && state.plannerFabOpen));
@@ -1677,6 +1702,7 @@ function bindEvents() {
     if (fabAction) {
       closePlannerFab();
       if (fabAction.dataset.newTrip !== undefined) openNewTrip();
+      else if (fabAction.dataset.addRoute !== undefined) addRecommendedRouteToTrip();
       else if (fabAction.dataset.go) setView(fabAction.dataset.go);
       return;
     }
