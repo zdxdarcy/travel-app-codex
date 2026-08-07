@@ -580,7 +580,8 @@ function detailGallery(item, detail) {
     .map((photo) => ({ ...photo, url: mediaUrl(photo?.url) }))
     .filter((photo) => photo?.media_type === "image" && photo.url)
     .slice(0, 6);
-  if (media.length) return `<div class="detail-gallery" aria-label="${escapeHtml(item.name_zh)} 图片">${media.map((photo) => { const alt = photo.alt_text || item.name_zh; return `<button class="detail-gallery-item" type="button" data-image-open data-image-url="${escapeHtml(photo.url)}" data-image-alt="${escapeHtml(alt)}" aria-label="查看 ${escapeHtml(alt)}"><img src="${escapeHtml(photo.url)}" alt="${escapeHtml(alt)}" loading="lazy" decoding="async" onerror="this.parentElement.classList.add('is-broken');this.remove()"><span class="detail-image-fallback" aria-hidden="true">图片暂不可用</span></button>`; }).join("")}</div>`;
+  const loading = usesWideRecommendationLayout() ? "eager" : "lazy";
+  if (media.length) return `<div class="detail-gallery" aria-label="${escapeHtml(item.name_zh)} 图片">${media.map((photo) => { const alt = photo.alt_text || item.name_zh; return `<button class="detail-gallery-item" type="button" data-image-open data-image-url="${escapeHtml(photo.url)}" data-image-alt="${escapeHtml(alt)}" aria-label="查看 ${escapeHtml(alt)}"><img src="${escapeHtml(photo.url)}" alt="${escapeHtml(alt)}" loading="${loading}" decoding="async" onerror="this.parentElement.classList.add('is-broken');this.remove()"><span class="detail-image-fallback" aria-hidden="true">图片暂不可用</span></button>`; }).join("")}</div>`;
   return `<div class="detail-media-placeholder" aria-hidden="true"></div>`;
 }
 
@@ -592,6 +593,10 @@ function detailReviews(detail) {
 }
 
 function detailMapCard(item, map) {
+  if (usesWideRecommendationLayout()) {
+    const src = `https://www.google.com/maps?q=${encodeURIComponent(map.query)}&output=embed`;
+    return `<div class="detail-map-card detail-map-card-ready" data-map-query="${escapeHtml(map.query)}" data-map-title="${escapeHtml(item.name_zh)}"><iframe title="${escapeHtml(item.name_zh)} 地图" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="${escapeHtml(src)}"></iframe><a href="${map.url}" target="_blank" rel="noreferrer">在 Google Maps 中查看 ↗</a></div>`;
+  }
   return `<div class="detail-map-card" data-map-query="${escapeHtml(map.query)}" data-map-title="${escapeHtml(item.name_zh)}"><button class="detail-map-load" type="button" data-map-load>点击加载地图</button><a href="${map.url}" target="_blank" rel="noreferrer">在 Google Maps 中查看 ↗</a></div>`;
 }
 
@@ -722,13 +727,25 @@ function bindRecommendationDetailInteractions() {
     cancelAnimationFrame(frame);
     frame = requestAnimationFrame(syncRecommendationDetailSelection);
   };
+  const preloadObserver = usesWideRecommendationLayout() && "IntersectionObserver" in window
+    ? new IntersectionObserver((entries) => {
+      entries.filter((entry) => entry.isIntersecting).forEach((entry) => {
+        const id = entry.target.dataset.recDetailCard;
+        const item = state.recommendations.items.find((candidate) => candidate.id === id);
+        if (item) loadRecommendationDetailExtrasFor(item);
+        preloadObserver.unobserve(entry.target);
+      });
+    }, { rootMargin: "900px 0px" })
+    : null;
   deck.addEventListener("scroll", schedule, { passive: true });
   window.addEventListener("resize", schedule, { passive: true });
   window.addEventListener("scroll", schedule, { passive: true });
+  if (preloadObserver) deck.querySelectorAll("[data-rec-detail-card]").forEach((card) => preloadObserver.observe(card));
   recommendationDetailCleanup = () => {
     deck.removeEventListener("scroll", schedule);
     window.removeEventListener("resize", schedule);
     window.removeEventListener("scroll", schedule);
+    preloadObserver?.disconnect();
     cancelAnimationFrame(frame);
   };
   requestAnimationFrame(syncRecommendationDetailSelection);

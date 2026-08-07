@@ -323,6 +323,11 @@ h3 { margin-bottom: 7px; font-size: 18px; }
   .attraction-detail-card { width: 100%; min-height: 0; overflow: visible; padding: 34px 0 46px; border: 0; background: transparent; box-shadow: none; scroll-snap-align: none; touch-action: auto; }
   .attraction-detail-card + .attraction-detail-card { border-top: 1px solid var(--line); }
   .attraction-detail-card.is-selected { border-color: var(--line); }
+  .enhanced-detail-layout { align-items: start; grid-template-columns: minmax(0, 1.3fr) minmax(360px, .7fr); gap: 32px; }
+  .enhanced-detail-aside { gap: 20px; }
+  .detail-map-card { border: 1px solid #cde1da; }
+  .detail-map-card iframe { height: 340px; }
+  .detail-reviews-slot { border-top: 1px solid var(--line); padding-top: 18px; }
 }
 
 @media (max-width: 620px) {

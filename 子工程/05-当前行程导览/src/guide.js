@@ -439,8 +439,13 @@ function bindDetailInteractions() {
     const deltaX = event.clientX - swipe.startX;
     const deltaY = event.clientY - swipe.startY;
     if (!swipe.axis) {
-      if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) < 8) return;
-      if (Math.abs(deltaY) >= Math.abs(deltaX)) {
+      const absX = Math.abs(deltaX);
+      const absY = Math.abs(deltaY);
+      if (Math.max(absX, absY) < 12) return;
+      // A day page is primarily a vertical reading surface. Only an
+      // unmistakably horizontal drag may switch cards; diagonal upward/downward
+      // scrolling must never move the deck even by a few pixels.
+      if (absX < absY * 1.5) {
         swipe.axis = "vertical";
         return;
       }
