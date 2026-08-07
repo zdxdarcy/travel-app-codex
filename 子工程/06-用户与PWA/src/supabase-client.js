@@ -191,6 +191,11 @@ async function listAttractions(cityId) {
   return publicTable(`attractions?select=id,city_id,slug,name_zh,name_en,tag,summary_zh,description_zh,duration_label,latitude,longitude,map_query,opening_hours,ticket_info,visit_notes,rating,review_count,rating_source&city_id=eq.${encodeURIComponent(cityId)}&is_active=eq.true&order=name_zh`);
 }
 
+async function getAttraction(attractionId) {
+  const rows = await publicTable(`attractions?select=id,city_id,slug,name_zh,name_en,tag,summary_zh,description_zh,duration_label,latitude,longitude,map_query,opening_hours,ticket_info,visit_notes,rating,review_count,rating_source&id=eq.${encodeURIComponent(attractionId)}&is_active=eq.true&limit=1`);
+  return Array.isArray(rows) ? rows[0] || null : null;
+}
+
 async function queryLatestPublishedAttractions(limit, sortField) {
   const safeLimit = Math.max(1, Math.min(24, Number(limit) || 12));
   const query = `attractions?select=id,city_id,slug,name_zh,name_en,tag,summary_zh,duration_label,rating,review_count,${sortField},cities!inner(id,country_id,region_id,name_zh,name_en,slug,is_active,countries!inner(id,region_id,name_zh,name_en,slug,iso_code,is_active))&is_active=eq.true&cities.is_active=eq.true&cities.countries.is_active=eq.true&order=${sortField}.desc,id.desc&limit=${safeLimit}`;
@@ -239,6 +244,18 @@ async function listAttractionMedia(attractionId) {
 
 async function listAttractionReviews(attractionId) {
   return publicTable(`attraction_review_summaries?select=id,attraction_id,review_type,review_text,sort_order,source_name&attraction_id=eq.${encodeURIComponent(attractionId)}&is_active=eq.true&order=sort_order`);
+}
+
+async function listRecommendedRoutes(countryId) {
+  return publicTable(`recommended_routes?select=id,country_id,region_id,slug,name_zh,name_en,area_slug,area_name_zh,area_name_en,summary_zh,duration_days,generation_metadata,source_name,source_url,source_updated_at&country_id=eq.${encodeURIComponent(countryId)}&is_active=eq.true&order=duration_days,name_zh`);
+}
+
+async function listRecommendedRouteDays(routeId) {
+  return publicTable(`recommended_route_days?select=id,route_id,day_number,title_zh,title_en,summary_zh,overnight_city_name_snapshot,notes&route_id=eq.${encodeURIComponent(routeId)}&is_active=eq.true&order=day_number`);
+}
+
+async function listRecommendedRouteItems(dayId) {
+  return publicTable(`recommended_route_items?select=id,route_day_id,attraction_id,title_snapshot,city_name_snapshot,planned_order,visit_mode,duration_minutes,notes,transit_notes,metadata&route_day_id=eq.${encodeURIComponent(dayId)}&is_active=eq.true&order=planned_order`);
 }
 
 async function listSelections() {
@@ -350,10 +367,14 @@ export const supabaseClient = {
   listRegions,
   listCities,
   listAttractions,
+  getAttraction,
   listLatestPublishedAttractions,
   listLatestPublishedCities,
   listAttractionMedia,
   listAttractionReviews,
+  listRecommendedRoutes,
+  listRecommendedRouteDays,
+  listRecommendedRouteItems,
   listSelections,
   saveSelection,
   migrateGuestData,

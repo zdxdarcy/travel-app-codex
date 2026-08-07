@@ -1,4 +1,4 @@
-import { supabaseClient as client } from "./supabase-client.js?v=20260823";
+import { supabaseClient as client } from "./supabase-client.js?v=20260834";
 import { cacheKeys, readCache, writeCache } from "./idb-cache.js";
 
 const state = {
@@ -9,7 +9,7 @@ const state = {
   activeTripId: null,
   collection: { status: "idle", tree: [], errors: [], requestId: 0 },
   latest: { status: "loading", items: [], fromCache: false, cachedAt: 0, requestId: 0 },
-  recommendations: { level: "continents", continent: null, country: null, region: null, city: null, items: [], detail: null, detailId: null, detailCache: new Map(), detailValues: new Map(), loading: true },
+  recommendations: { level: "continents", continent: null, country: null, region: null, city: null, route: null, routeDays: [], routes: [], routeDetailReturn: false, items: [], detail: null, detailId: null, detailCache: new Map(), detailValues: new Map(), loading: true },
   recovery: false,
   installPrompt: null,
   plannerFabOpen: false,
@@ -500,11 +500,13 @@ async function hydrateLatestRecommendations(force = false) {
 }
 
 function recommendationBreadcrumb() {
-  const { level, continent, country, region, city } = state.recommendations;
-  const labels = [continent?.name_zh || (level === "regions" || level === "cities" || level === "attractions" || level === "detail" ? "国家目录" : "大洲")];
+  const { level, continent, country, region, city, route } = state.recommendations;
+  const labels = [continent?.name_zh || (level === "regions" || level === "cities" || level === "attractions" || level === "detail" || level === "routes" || level === "route-detail" ? "国家目录" : "大洲")];
   if (level !== "continents" && country) labels.push(country.name_zh);
   if ((level === "cities" || level === "attractions" || level === "detail") && region) labels.push(region.name_zh);
   if ((level === "attractions" || level === "detail") && city) labels.push(city.name_zh);
+  if (["routes", "route-detail"].includes(level)) labels.push("推荐路线");
+  if (level === "route-detail" && route) labels.push(route.name_zh);
   $("#recommendationBreadcrumb").textContent = labels.join(" / ");
   $("#recommendationBack").hidden = level === "continents";
 }
@@ -514,6 +516,9 @@ function recommendationCard(item, kind) {
     const mode = selectionMode(item.id);
     const modeLabel = { inside: "入内参观", outside: "外部参观", none: "未安排" }[mode];
     return `<article class="recommendation-card attraction-recommendation-card"><button class="recommendation-open" type="button" data-rec-open="attraction" data-id="${escapeHtml(item.id)}"><span class="recommendation-card-title">${escapeHtml(item.name_zh)}</span><span class="recommendation-card-en">${escapeHtml(item.name_en)}</span><span class="recommendation-card-meta">${escapeHtml(item.tag || "景点")}${item.duration_label ? ` · ${escapeHtml(item.duration_label)}` : ""}${item.rating ? ` · ${escapeHtml(item.rating)} 分` : ""}</span></button><button class="visit-mode mode-${mode}" type="button" data-rec-visit="${escapeHtml(item.id)}" aria-pressed="${mode !== "none"}">${modeLabel}</button></article>`;
+  }
+  if (kind === "route") {
+    return `<button class="recommendation-card destination-card route-card" type="button" data-rec-open="route" data-id="${escapeHtml(item.id)}"><span class="route-card-kicker">${escapeHtml(item.area_name_zh || "推荐路线")}</span><span class="recommendation-card-title">${escapeHtml(item.name_zh)}</span><span class="recommendation-card-en">${escapeHtml(item.name_en || "")}</span><span class="recommendation-card-meta">${escapeHtml(item.duration_days)} 天 · 查看路线安排</span></button>`;
   }
   const title = `${item.name_zh}`;
   const subtitle = item.name_en || item.slug || "";
@@ -626,8 +631,20 @@ function loadDetailMap(button) {
 function renderRecommendationDetailDeck() {
   const rec = state.recommendations;
   const city = rec.city;
+  const backLabel = rec.routeDetailReturn ? "推荐路线" : (city?.name_zh || "景点目录");
   const chips = rec.items.map((item) => `<button class="detail-chip ${item.id === rec.detailId ? "is-active" : ""}" type="button" data-rec-detail-chip="${escapeHtml(item.id)}">${escapeHtml(item.name_zh)}</button>`).join("");
-  return `<article class="city-attraction-view"><button class="text-button small" type="button" data-rec-back>← 返回 ${escapeHtml(city?.name_zh || "景点目录")}</button><header class="city-attraction-heading"><div><p class="eyebrow">ATTRACTION GUIDE</p><h2>${escapeHtml(city?.name_zh || "城市")}</h2><p>${escapeHtml(city?.name_en || "")}</p></div><span class="recommendation-city-count">${rec.items.length} 个景点</span></header><nav class="detail-chip-bar" aria-label="选择景点">${chips}</nav>${detailNavigation()}<div class="recommendation-detail-deck" data-rec-detail-deck>${rec.items.map(recommendationDetailCard).join("")}</div></article>`;
+  return `<article class="city-attraction-view"><button class="text-button small" type="button" data-rec-back>← 返回 ${escapeHtml(backLabel)}</button><header class="city-attraction-heading"><div><p class="eyebrow">ATTRACTION GUIDE</p><h2>${escapeHtml(city?.name_zh || "城市")}</h2><p>${escapeHtml(city?.name_en || "")}</p></div><span class="recommendation-city-count">${rec.items.length} 个景点</span></header><nav class="detail-chip-bar" aria-label="选择景点">${chips}</nav>${detailNavigation()}<div class="recommendation-detail-deck" data-rec-detail-deck>${rec.items.map(recommendationDetailCard).join("")}</div></article>`;
+}
+
+function renderRecommendedRouteDetail() {
+  const rec = state.recommendations;
+  const route = rec.route;
+  const days = rec.routeDays || [];
+  const dayMarkup = days.map((day) => {
+    const items = (day.items || []).map((item) => `<li class="route-stop"><button class="route-stop-open" type="button" data-route-attraction="${escapeHtml(item.attraction_id)}"><span class="route-stop-order">${escapeHtml(item.planned_order)}</span><span class="route-stop-copy"><strong>${escapeHtml(item.title_snapshot)}</strong><span>${escapeHtml(item.city_name_snapshot)}${item.duration_minutes ? ` · 约 ${escapeHtml(item.duration_minutes)} 分钟` : ""}</span>${item.notes ? `<p>${escapeHtml(item.notes)}</p>` : ""}${item.transit_notes ? `<small>${escapeHtml(item.transit_notes)}</small>` : ""}</span></button></li>`).join("");
+    return `<section class="route-day"><header class="route-day-heading"><div><span class="eyebrow">DAY ${escapeHtml(day.day_number)}</span><h3>${escapeHtml(day.title_zh)}</h3>${day.title_en ? `<p>${escapeHtml(day.title_en)}</p>` : ""}</div>${day.overnight_city_name_snapshot ? `<span class="route-overnight">住 ${escapeHtml(day.overnight_city_name_snapshot)}</span>` : ""}</header>${day.summary_zh ? `<p class="route-day-summary">${escapeHtml(day.summary_zh)}</p>` : ""}<ol class="route-stop-list">${items}</ol>${day.notes ? `<p class="route-day-notes">${escapeHtml(day.notes)}</p>` : ""}</section>`;
+  }).join("");
+  return `<article class="route-detail-view"><button class="text-button small" type="button" data-rec-back>← 返回推荐路线</button><header class="route-detail-heading"><div><p class="eyebrow">RECOMMENDED ROUTE</p><h2>${escapeHtml(route?.name_zh || "推荐路线")}</h2><p>${escapeHtml(route?.name_en || "")}</p></div><span class="recommendation-city-count">${escapeHtml(route?.duration_days || days.length)} 天</span></header><div class="route-detail-meta"><span>${escapeHtml(route?.area_name_zh || "")}</span><span>AI 生成 · 已按景点库校验</span></div><p class="route-summary">${escapeHtml(route?.summary_zh || "")}</p><div class="route-day-list">${dayMarkup || `<div class="recommendation-empty"><strong>暂无日程</strong><span>这条路线暂时没有可显示的安排。</span></div>`}</div></article>`;
 }
 
 function syncRecommendationDetailSelection() {
@@ -786,13 +803,21 @@ function renderRecommendations() {
     });
     return;
   }
+  if (level === "route-detail" && state.recommendations.route) {
+    content.innerHTML = renderRecommendedRouteDetail();
+    content.removeAttribute("aria-busy");
+    return;
+  }
   if (!items.length) {
     content.innerHTML = `<div class="recommendation-empty"><strong>暂无可显示内容</strong><span>${client.isConfigured() ? "目录中还没有启用记录。" : "注入 publishable key 后即可读取线上目录。"}</span></div>`;
     content.removeAttribute("aria-busy");
     return;
   }
-  const kind = level === "continents" ? "continent" : level === "countries" ? "country" : level === "regions" ? "region" : level === "cities" ? "city" : "attraction";
-  content.innerHTML = `<div class="recommendation-grid">${items.map((item) => recommendationCard(item, kind)).join("")}</div>`;
+  const kind = level === "continents" ? "continent" : level === "countries" ? "country" : level === "regions" ? "region" : level === "cities" ? "city" : level === "routes" ? "route" : "attraction";
+  const routeEntry = ["regions", "cities"].includes(level) && state.recommendations.country
+    ? `<button class="directory-section-entry" type="button" data-rec-open="routes" data-id="${escapeHtml(state.recommendations.country.id)}"><span class="directory-section-icon" aria-hidden="true">↝</span><span><strong>推荐路线</strong><small>按区域和天数查看 AI 生成的路线安排</small></span><span aria-hidden="true">→</span></button>`
+    : "";
+  content.innerHTML = `${routeEntry}<div class="recommendation-grid">${items.map((item) => recommendationCard(item, kind)).join("")}</div>`;
   content.removeAttribute("aria-busy");
 }
 
@@ -975,10 +1000,49 @@ async function openRecommendation(kind, id) {
       rec.city = rec.items.find((item) => item.id === id) || null;
       rec.level = "attractions";
       rec.items = await loadCatalogLevel("attractions", id, () => client.listAttractions(id));
+    } else if (kind === "routes") {
+      rec.level = "routes";
+      rec.route = null;
+      rec.routeDays = [];
+      rec.routeDetailReturn = false;
+      rec.routes = await client.listRecommendedRoutes(id);
+      rec.items = rec.routes;
+    } else if (kind === "route") {
+      rec.route = rec.items.find((item) => item.id === id) || null;
+      rec.level = "route-detail";
+      rec.routeDetailReturn = false;
+      rec.routeDays = await client.listRecommendedRouteDays(id);
+      rec.routeDays = await Promise.all(rec.routeDays.map(async (day) => ({ ...day, items: await client.listRecommendedRouteItems(day.id) })));
+      rec.items = [];
     }
     recommendationStatus("公开目录");
   } catch (error) {
+    if (kind === "routes") { rec.routes = []; rec.items = []; }
+    if (kind === "route") { rec.routeDays = []; rec.items = []; }
     recommendationStatus(`目录暂不可用：${client.authError(error)}`);
+  } finally {
+    rec.loading = false;
+    renderRecommendations();
+  }
+}
+
+async function openRouteAttraction(attractionId) {
+  const rec = state.recommendations;
+  if (!attractionId || !rec.route) return;
+  rec.loading = true;
+  renderRecommendations();
+  try {
+    const item = rec.routeDays.flatMap((day) => day.items || []).find((candidate) => candidate.attraction_id === attractionId);
+    const attraction = await client.getAttraction(attractionId);
+    if (!attraction) throw new Error("该景点暂不可用");
+    rec.city = { id: attraction.city_id || "", name_zh: item?.city_name_snapshot || "路线景点", name_en: "" };
+    rec.items = [attraction];
+    rec.detail = attraction;
+    rec.detailId = attraction.id;
+    rec.routeDetailReturn = true;
+    rec.level = "detail";
+  } catch (error) {
+    recommendationStatus(`景点详情暂不可用：${client.authError(error)}`);
   } finally {
     rec.loading = false;
     renderRecommendations();
@@ -1018,7 +1082,20 @@ async function backRecommendation() {
   rec.loading = true;
   renderRecommendations();
   try {
-    if (rec.level === "detail") { rec.level = "attractions"; rec.detail = null; rec.detailId = null; }
+    if (rec.level === "detail") {
+      const returnToRoute = rec.routeDetailReturn;
+      rec.level = returnToRoute ? "route-detail" : "attractions";
+      rec.items = returnToRoute ? [] : rec.items;
+      rec.detail = null;
+      rec.detailId = null;
+      rec.routeDetailReturn = false;
+    }
+    else if (rec.level === "route-detail") { rec.level = "routes"; rec.items = rec.routes; rec.route = null; rec.routeDays = []; }
+    else if (rec.level === "routes") {
+      const directory = await loadCountryDirectory(rec.country);
+      rec.level = directory.level;
+      rec.items = directory.items;
+    }
     else if (rec.level === "attractions") { rec.level = "cities"; rec.items = await loadCatalogLevel("cities", rec.country.id, () => client.listCities(rec.country.id, rec.region?.id || null)); }
     else if (rec.level === "cities") {
       if (rec.region?.id) {
@@ -1634,6 +1711,8 @@ function bindEvents() {
     if (remove) handleDeleteTrip(remove.dataset.deleteTrip);
     const recOpen = event.target.closest("[data-rec-open]");
     if (recOpen) openRecommendation(recOpen.dataset.recOpen, recOpen.dataset.id);
+    const routeAttraction = event.target.closest("[data-route-attraction]");
+    if (routeAttraction) openRouteAttraction(routeAttraction.dataset.routeAttraction);
     const mapLoad = event.target.closest("[data-map-load]");
     if (mapLoad) loadDetailMap(mapLoad);
     const latestCountry = event.target.closest("[data-latest-country]");
