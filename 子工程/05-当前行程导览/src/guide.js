@@ -428,59 +428,17 @@ function bindDetailInteractions() {
     cancelAnimationFrame(detailSyncFrame);
     detailSyncFrame = requestAnimationFrame(syncDetailSelection);
   };
-  let swipe = null;
-  const isInteractive = (target) => target.closest("a, button, input, textarea, [contenteditable='true'], .photo-strip, .attraction-nav-scroll");
-  const onTouchStart = (event) => {
-    const touch = event.touches[0];
-    if (!touch || usesWideDetailLayout() || isInteractive(event.target)) return;
-    swipe = { startX: touch.clientX, startY: touch.clientY, startLeft: deck.scrollLeft, axis: null };
-  };
-  const onTouchMove = (event) => {
-    const touch = event.touches[0];
-    if (!touch || !swipe || usesWideDetailLayout()) return;
-    const deltaX = touch.clientX - swipe.startX;
-    const deltaY = touch.clientY - swipe.startY;
-    if (!swipe.axis) {
-      const absX = Math.abs(deltaX);
-      const absY = Math.abs(deltaY);
-      if (Math.max(absX, absY) < 12) return;
-      // A day page is primarily a vertical reading surface. Only an
-      // unmistakably horizontal drag may switch cards; diagonal upward/downward
-      // scrolling must never move the deck even by a few pixels.
-      if (absX < absY * 1.5) {
-        swipe.axis = "vertical";
-        return;
-      }
-      swipe.axis = "horizontal";
-    }
-    if (swipe.axis !== "horizontal") return;
-    if (event.cancelable) event.preventDefault();
-    const maxLeft = Math.max(0, deck.scrollWidth - deck.clientWidth);
-    deck.scrollLeft = Math.max(0, Math.min(swipe.startLeft - deltaX, maxLeft));
-  };
-  const finishSwipe = () => {
-    if (!swipe) return;
-    const horizontal = swipe.axis === "horizontal";
-    swipe = null;
-    if (!horizontal || usesWideDetailLayout()) return;
-    const index = Math.round(deck.scrollLeft / Math.max(1, deck.clientWidth));
-    deck.scrollTo({ left: index * deck.clientWidth, behavior: "smooth" });
-  };
+  // Keep this deck native, like the discovery detail deck.  In particular,
+  // do not emulate a drag with Touch Events: iOS may cancel a scripted drag
+  // once a vertical scroll begins, leaving the card carousel unresponsive.
+  // Scroll snapping takes care of settling on one attraction after release.
   deck.addEventListener("scroll", schedule, { passive: true });
   window.addEventListener("resize", schedule, { passive: true });
   window.addEventListener("scroll", schedule, { passive: true });
-  deck.addEventListener("touchstart", onTouchStart, { passive: true });
-  deck.addEventListener("touchmove", onTouchMove, { passive: false });
-  deck.addEventListener("touchend", finishSwipe, { passive: true });
-  deck.addEventListener("touchcancel", finishSwipe, { passive: true });
   detailScrollCleanup = () => {
     deck.removeEventListener("scroll", schedule);
     window.removeEventListener("resize", schedule);
     window.removeEventListener("scroll", schedule);
-    deck.removeEventListener("touchstart", onTouchStart);
-    deck.removeEventListener("touchmove", onTouchMove);
-    deck.removeEventListener("touchend", finishSwipe);
-    deck.removeEventListener("touchcancel", finishSwipe);
     cancelAnimationFrame(detailSyncFrame);
   };
 }
