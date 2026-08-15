@@ -2,16 +2,16 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f7f8fa">
   <meta name="description" content="旅序：旅行规划、导览与个人清单">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="旅序">
-  <link rel="manifest" href="./manifest.webmanifest?v=20260818">
+  <link rel="manifest" href="./manifest.webmanifest">
   <link rel="apple-touch-icon" sizes="180x180" href="./assets/apple-touch-icon.png">
   <link rel="icon" href="./assets/icon-192.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./src/styles.css?v=20260836">
+  <link rel="stylesheet" href="./src/styles.css?v=20260814">
   <title>旅序 · 我的旅行</title>
 </head>
 <body>
@@ -43,7 +43,7 @@
         </div>
         <div class="latest-release-strip" aria-labelledby="latestReleaseTitle">
           <div class="latest-release-heading"><span class="strip-label">最新上线</span><h2 id="latestReleaseTitle">景点与国家推荐</h2></div>
-          <div class="latest-release-content" id="latestReleaseContent" aria-busy="true"><span class="latest-release-skeleton" aria-hidden="true"></span><span class="latest-release-skeleton" aria-hidden="true"></span></div>
+          <div class="latest-release-content" id="latestReleaseContent"></div>
           <p class="latest-release-status" id="latestReleaseStatus" role="status"></p>
         </div>
         <div class="recommendation-shell" id="recommendationShell">
@@ -53,28 +53,22 @@
             <button class="text-button small" id="recommendationRefresh" type="button">刷新</button>
           </div>
           <div class="recommendation-status" id="recommendationStatus" role="status"></div>
-          <div class="recommendation-content" id="recommendationContent" aria-busy="true"><div class="recommendation-skeleton-grid" aria-hidden="true"><span class="recommendation-skeleton"></span><span class="recommendation-skeleton"></span><span class="recommendation-skeleton"></span><span class="recommendation-skeleton"></span></div></div>
+          <div class="recommendation-content" id="recommendationContent"></div>
         </div>
       </section>
 
-      <section class="view external-view" data-view="planner" aria-labelledby="plannerTitle" hidden>
-        <h1 class="sr-only" id="plannerTitle">行程规划</h1>
-        <div class="external-view-shell" data-external-mount="planner" data-state="idle" role="region" aria-live="polite" aria-label="行程规划">
-          <div class="external-view-loading" data-external-loading>
-            <span class="loading-skeleton loading-skeleton-wide" aria-hidden="true"></span>
-            <span class="loading-skeleton loading-skeleton-short" aria-hidden="true"></span>
-          </div>
-        </div>
+      <section class="view" data-view="planner" aria-labelledby="plannerTitle" hidden>
+        <h1 id="plannerTitle" class="sr-only">行程规划</h1>
+        <div class="planner-module-host"><iframe id="plannerModuleFrame" src="../04-旅程规划/planner.html?embedded=1" title="行程规划" loading="eager"></iframe></div>
       </section>
 
-      <section class="view external-view" data-view="guide" aria-labelledby="guideTitle" hidden>
-        <h1 class="sr-only" id="guideTitle">当前导览</h1>
-        <div class="external-view-shell" data-external-mount="guide" data-state="idle" role="region" aria-live="polite" aria-label="当前导览">
-          <div class="external-view-loading" data-external-loading>
-            <span class="loading-skeleton loading-skeleton-wide" aria-hidden="true"></span>
-            <span class="loading-skeleton loading-skeleton-short" aria-hidden="true"></span>
-          </div>
+      <section class="view" data-view="guide" aria-labelledby="guideTitle" hidden>
+        <div class="section-heading compact-heading">
+          <div><p class="eyebrow">ON THE ROAD</p><h1 id="guideTitle">当前导览</h1><p class="lede">出发后，只看今天真正需要的安排。</p></div>
+          <span class="heading-index">03</span>
         </div>
+        <div class="guide-hero" id="guideHero"></div>
+        <div class="empty-panel" id="guideEmpty"><span class="panel-icon" aria-hidden="true">◷</span><div><h2>还没有当前行程</h2><p>在“我的”中选择一个行程，它会出现在这里。</p></div><button class="secondary-button" type="button" data-go="trips">选择行程</button></div>
       </section>
 
       <section class="view" data-view="trips" aria-labelledby="tripsTitle" hidden>
@@ -112,7 +106,6 @@
     <div class="planner-fab" id="plannerFab" hidden>
       <div class="planner-fab-menu" id="plannerFabMenu" role="menu" hidden>
         <button class="planner-fab-action" type="button" role="menuitem" data-new-trip>新建行程</button>
-        <button class="planner-fab-action" type="button" role="menuitem" data-add-route hidden>加入当前推荐路线</button>
       </div>
       <button class="planner-fab-toggle" type="button" data-fab-toggle aria-label="规划行程" title="规划行程" aria-controls="plannerFabMenu" aria-expanded="false"><span aria-hidden="true">＋</span></button>
     </div>
@@ -120,7 +113,7 @@
     <nav class="bottom-nav" aria-label="主导航">
       <a href="#discover" class="nav-item is-active" data-nav="discover"><span class="nav-icon" aria-hidden="true">⌖</span><span>发现</span></a>
       <a href="#planner" class="nav-item" data-nav="planner"><span class="nav-icon" aria-hidden="true">＋</span><span>规划</span></a>
-      <a href="#guide" class="nav-item" data-nav="guide"><span class="nav-icon" aria-hidden="true">◷</span><span>导览</span></a>
+      <a href="../05-当前行程导览/guide.html" class="nav-item" data-nav="guide"><span class="nav-icon" aria-hidden="true">◷</span><span>导览</span></a>
       <a href="#trips" class="nav-item" data-nav="trips"><span class="nav-icon" aria-hidden="true">▤</span><span>清单</span></a>
       <a href="#account" class="nav-item" data-nav="account"><span class="nav-icon" aria-hidden="true">○</span><span>我的</span></a>
     </nav>
@@ -150,6 +143,6 @@
 
   <script>window.__TRAVEL_APP_CONFIG__ = { SUPABASE_URL: "https://ogqirzemiceoosfebxgh.supabase.co", SUPABASE_PUBLISHABLE_KEY: "" };</script>
   <script src="./config/runtime-config.js?v=20260802"></script>
-  <script type="module" src="./src/app.js?v=20260836"></script>
+  <script type="module" src="./src/app.js?v=20260814"></script>
 </body>
 </html>
