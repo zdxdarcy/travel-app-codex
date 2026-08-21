@@ -1840,7 +1840,7 @@ const TAF = (function(){
   let authSyncBound=false;
   let storageSyncBound=false;
   let afterLoginPromise=null;
-  function setEntryMode(mode){ window.__plannerSetEntryMode?.(mode); }
+  function setEntryMode(mode){ window.__plannerEntryMode=mode||"pending"; window.__plannerSetEntryMode?.(window.__plannerEntryMode); }
   function renderCountryEntry(){ window.__plannerShowCountry?.(); }
   function initClient(){ if(sb) return; if(!SUPABASE_READY){ console.warn("未注入 SUPABASE_PUBLISHABLE_KEY，仅启用游客/本机模式"); return; } if(!window.supabase||!window.supabase.createClient){ console.warn("Supabase SDK 未加载"); return; }
     sb=window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {auth:{persistSession:true, autoRefreshToken:true, storageKey:"travel-app-auth-v1"}});
@@ -2367,8 +2367,8 @@ function initializePlannerUI(){
   const root=document.getElementById("plannerV2Root");
   const sheet=document.getElementById("plannerV2Sheet");
   let screen="country", plannerView="overview", addDay=-1, addKind="", insertAt=-1, mapFocusIndex=-1, mapStage=0, routeDraft=null, routeFocus="";
-  let entryMode="pending"; // pending -> login/guest; favorites -> 登录用户收藏；guest -> 游客公开目录
-  window.__plannerSetEntryMode=(mode)=>{ entryMode=mode||"pending"; };
+  let entryMode=window.__plannerEntryMode||"pending"; // pending -> login/guest; favorites -> 登录用户收藏；guest -> 游客公开目录
+  window.__plannerSetEntryMode=(mode)=>{ entryMode=mode||"pending"; window.__plannerEntryMode=entryMode; };
   window.__plannerShowCountry=()=>{ screen="country"; plannerView="overview"; addDay=-1; addKind=""; insertAt=-1; window.renderPlannerV2?.(); };
   const routeCache=new Map();
   let leafletMap=null, leafletHost=null, leafletRouteLayer=null;
