@@ -438,13 +438,21 @@ function detailReviews(detail) {
   return `<div class="detail-reviews-slot" data-detail-reviews><div class="review-summary"><span class="meta-label">评价摘要</span><div class="review-list">${entries.map((review) => { const [label, className] = labels[review?.review_type] || ["评价", "neutral"]; return `<div class="review-entry review-${className}"><span class="review-label">${label}</span><p>${escapeHtml(review?.review_text || "暂无评价内容")}</p></div>`; }).join("")}</div></div></div>`;
 }
 
+function detailAside(item, detail) {
+  const map = mapTarget(item);
+  const mapMarkup = map ? `<div class="detail-map-card"><iframe title="${escapeHtml(item.name_zh)} 地图" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://www.google.com/maps?q=${encodeURIComponent(map.query)}&output=embed"></iframe><a href="${map.url}" target="_blank" rel="noreferrer">在地图中查看 ↗</a></div>` : "";
+  const reviewMarkup = detail?.reviews?.length ? detailReviews(detail) : "";
+  return `${mapMarkup}${reviewMarkup}`;
+}
+
 function recommendationDetailCard(item, index) {
   const rec = state.recommendations;
   const detail = rec.detailValues?.get(item.id) || null;
   const mode = selectionMode(item.id);
   const map = mapTarget(item);
+  const asideMarkup = detailAside(item, detail);
   const facts = `<div class="detail-facts"><span>建议时长<strong>${escapeHtml(item.duration_label || "暂无")}</strong></span><span>评分<strong>${item.rating != null ? `${escapeHtml(item.rating)} / 5` : "暂无"}</strong></span><span>评价<strong>${item.review_count != null ? escapeHtml(item.review_count) : "暂无"}</strong></span></div><div class="detail-facts detail-copy"><span>开放时间<strong>${escapeHtml(catalogText(item.opening_hours))}</strong></span><span>票价<strong>${escapeHtml(catalogText(item.ticket_info))}</strong></span></div>`;
-  return `<article class="attraction-detail-card ${item.id === rec.detailId ? "is-selected" : ""}" data-rec-detail-card="${escapeHtml(item.id)}"><header class="detail-heading"><div class="detail-heading-copy"><span class="eyebrow">${escapeHtml(item.tag || "景点详情")}</span><div class="detail-title-line"><h2>${escapeHtml(item.name_zh)}</h2>${map ? `<a class="detail-map-shortcut" href="${map.url}" target="_blank" rel="noreferrer" aria-label="在地图中打开 ${escapeHtml(item.name_zh)}" title="打开地图">${googleMapsIcon()}</a>` : ""}</div><p>${escapeHtml(item.name_en || "")}</p></div><button class="visit-mode mode-${mode}" type="button" data-rec-visit="${escapeHtml(item.id)}" aria-pressed="${mode !== "none"}">${{ inside: "入内参观", outside: "外部参观", none: "未安排" }[mode]}</button></header><div class="enhanced-detail-layout"><div class="enhanced-detail-main"><p class="detail-intro">${escapeHtml(item.description_zh || item.summary_zh || "暂无介绍")}</p><div data-detail-gallery>${detailGallery(item, detail)}</div>${facts}<p class="detail-note">${escapeHtml(item.visit_notes || "")}</p></div><aside class="enhanced-detail-aside">${map ? `<div class="detail-map-card"><iframe title="${escapeHtml(item.name_zh)} 地图" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://www.google.com/maps?q=${encodeURIComponent(map.query)}&output=embed"></iframe><a href="${map.url}" target="_blank" rel="noreferrer">在地图中查看 ↗</a></div>` : ""}${detailReviews(detail)}</aside></div></article>`;
+  return `<article class="attraction-detail-card ${item.id === rec.detailId ? "is-selected" : ""}" data-rec-detail-card="${escapeHtml(item.id)}"><header class="detail-heading"><div class="detail-heading-copy"><span class="eyebrow">${escapeHtml(item.tag || "景点详情")}</span><div class="detail-title-line"><h2>${escapeHtml(item.name_zh)}</h2>${map ? `<a class="detail-map-shortcut" href="${map.url}" target="_blank" rel="noreferrer" aria-label="在地图中打开 ${escapeHtml(item.name_zh)}" title="打开地图">${googleMapsIcon()}</a>` : ""}</div><p>${escapeHtml(item.name_en || "")}</p></div><button class="visit-mode mode-${mode}" type="button" data-rec-visit="${escapeHtml(item.id)}" aria-pressed="${mode !== "none"}">${{ inside: "入内参观", outside: "外部参观", none: "未安排" }[mode]}</button></header><div class="enhanced-detail-layout${asideMarkup ? " has-aside" : ""}"><div class="enhanced-detail-main"><p class="detail-intro">${escapeHtml(item.description_zh || item.summary_zh || "暂无介绍")}</p><div data-detail-gallery>${detailGallery(item, detail)}</div>${facts}<p class="detail-note">${escapeHtml(item.visit_notes || "")}</p></div>${asideMarkup ? `<aside class="enhanced-detail-aside" data-detail-aside>${asideMarkup}</aside>` : ""}</div></article>`;
 }
 
 function renderRecommendationDetailDeck() {
@@ -466,15 +474,22 @@ function renderRecommendedRouteDetail() {
   return `<article class="route-detail-view"><button class="text-button small" type="button" data-rec-back>← 返回推荐路线</button><header class="route-detail-heading"><div><p class="eyebrow">RECOMMENDED ROUTE</p><h2>${escapeHtml(route?.name_zh || "推荐路线")}</h2><p>${escapeHtml(route?.name_en || "")}</p></div><span class="recommendation-city-count">${escapeHtml(route?.duration_days || days.length)} 天</span></header><div class="route-detail-meta"><span>${escapeHtml(route?.area_name_zh || "")}</span><span>AI 生成 · 已按景点库校验</span></div><p class="route-summary">${escapeHtml(route?.summary_zh || "")}</p><div class="route-day-list">${dayMarkup || `<div class="recommendation-empty"><strong>暂无日程</strong><span>这条路线暂时没有可显示的安排。</span></div>`}</div></article>`;
 }
 
-function syncRecommendationDetailSelection() {
+function scrollRecommendationDetailChip(id) {
+  const chip = document.querySelector(`[data-rec-detail-chip="${CSS.escape(id)}"]`);
+  const nav = chip?.closest(".detail-chip-bar");
+  if (!chip || !nav) return;
+  nav.scrollTo({ left: Math.max(0, chip.offsetLeft - nav.clientWidth / 2 + chip.offsetWidth / 2), behavior: "smooth" });
+}
+
+function syncRecommendationDetailSelection({ scrollChip = false } = {}) {
   const deck = document.querySelector("[data-rec-detail-deck]");
   if (!deck) return;
   const cards = [...deck.querySelectorAll("[data-rec-detail-card]")];
   if (!cards.length) return;
-  const targetLeft = deck.scrollLeft;
+  const targetCenter = deck.scrollLeft + deck.clientWidth / 2;
   const index = cards.reduce((best, card, candidate) => {
-    const bestDistance = Math.abs(cards[best].offsetLeft - targetLeft);
-    const candidateDistance = Math.abs(card.offsetLeft - targetLeft);
+    const bestDistance = Math.abs(cards[best].offsetLeft + cards[best].offsetWidth / 2 - targetCenter);
+    const candidateDistance = Math.abs(card.offsetLeft + card.offsetWidth / 2 - targetCenter);
     return candidateDistance < bestDistance ? candidate : best;
   }, 0);
   const item = state.recommendations.items[index];
@@ -486,10 +501,7 @@ function syncRecommendationDetailSelection() {
     const active = chip.dataset.recDetailChip === item.id;
     chip.classList.toggle("is-active", active);
     chip.setAttribute("aria-current", active ? "true" : "false");
-    if (active) {
-      const nav = chip.closest(".detail-chip-bar");
-      if (nav) nav.scrollTo({ left: Math.max(0, chip.offsetLeft - nav.clientWidth / 2 + chip.offsetWidth / 2), behavior: "smooth" });
-    }
+    if (active && scrollChip) scrollRecommendationDetailChip(item.id);
   });
   const nav = document.querySelector(".detail-navigation");
   if (nav) {
@@ -506,7 +518,7 @@ function syncRecommendationDetailSelection() {
     .forEach(loadRecommendationDetailExtrasFor);
 }
 
-function scrollRecommendationDetail(id, { behavior = "smooth" } = {}) {
+function scrollRecommendationDetail(id, { behavior = "smooth", scrollChip = false } = {}) {
   const card = document.querySelector(`[data-rec-detail-card="${CSS.escape(id)}"]`);
   if (!card) return;
   const deck = card.closest("[data-rec-detail-deck]");
@@ -518,7 +530,8 @@ function scrollRecommendationDetail(id, { behavior = "smooth" } = {}) {
   }
   state.recommendations.detailId = id;
   state.recommendations.detail = state.recommendations.items.find((item) => item.id === id) || state.recommendations.detail;
-  if (behavior === "instant") syncRecommendationDetailSelection();
+  if (behavior === "instant") syncRecommendationDetailSelection({ scrollChip });
+  else if (scrollChip) scrollRecommendationDetailChip(id);
 }
 
 function bindRecommendationDetailInteractions() {
@@ -531,7 +544,7 @@ function bindRecommendationDetailInteractions() {
   };
   deck.addEventListener("scroll", schedule, { passive: true });
   window.addEventListener("resize", schedule, { passive: true });
-  requestAnimationFrame(syncRecommendationDetailSelection);
+  requestAnimationFrame(() => syncRecommendationDetailSelection());
 }
 
 function loadRecommendationDetailExtrasFor(item) {
@@ -541,9 +554,19 @@ function loadRecommendationDetailExtrasFor(item) {
     rec.detailValues.set(item.id, { media, reviews });
     const card = document.querySelector(`[data-rec-detail-card="${CSS.escape(item.id)}"]`);
     const gallery = card?.querySelector("[data-detail-gallery]");
-    const review = card?.querySelector("[data-detail-reviews]");
     if (gallery) gallery.innerHTML = detailGallery(item, { media, reviews });
-    if (review) review.outerHTML = detailReviews({ media, reviews });
+    const layout = card?.querySelector(".enhanced-detail-layout");
+    if (layout) {
+      const asideMarkup = detailAside(item, { media, reviews });
+      const aside = layout.querySelector("[data-detail-aside]");
+      if (asideMarkup) {
+        if (aside) aside.innerHTML = asideMarkup;
+        else layout.insertAdjacentHTML("beforeend", `<aside class="enhanced-detail-aside" data-detail-aside>${asideMarkup}</aside>`);
+      } else if (aside) {
+        aside.remove();
+      }
+      layout.classList.toggle("has-aside", Boolean(asideMarkup));
+    }
   }).catch(() => {});
 }
 
@@ -1356,10 +1379,10 @@ function bindEvents() {
       const rec = state.recommendations;
       const index = rec.items.findIndex((item) => item.id === rec.detail?.id);
       const target = rec.items[index + Number(detailStep.dataset.recDetailStep)];
-      if (target) scrollRecommendationDetail(target.id);
+      if (target) scrollRecommendationDetail(target.id, { scrollChip: true });
     }
     const detailChip = event.target.closest("[data-rec-detail-chip]");
-    if (detailChip) scrollRecommendationDetail(detailChip.dataset.recDetailChip);
+    if (detailChip) scrollRecommendationDetail(detailChip.dataset.recDetailChip, { scrollChip: true });
     const recVisit = event.target.closest("[data-rec-visit]");
     if (recVisit) toggleRecommendationVisit(recVisit.dataset.recVisit);
     const routeAttraction = event.target.closest("[data-route-attraction]");
