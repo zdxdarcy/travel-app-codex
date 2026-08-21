@@ -1837,8 +1837,37 @@ function coreItemToPlanItem(item){
 const TAF = (function(){
   let sb=null, session=null, username=null;
   const GUEST_KEY="taf_guest";
+  let authSyncBound=false;
+  let storageSyncBound=false;
+  let afterLoginPromise=null;
+  function setEntryMode(mode){ window.__plannerSetEntryMode?.(mode); }
+  function renderCountryEntry(){ window.__plannerShowCountry?.(); }
   function initClient(){ if(sb) return; if(!SUPABASE_READY){ console.warn("未注入 SUPABASE_PUBLISHABLE_KEY，仅启用游客/本机模式"); return; } if(!window.supabase||!window.supabase.createClient){ console.warn("Supabase SDK 未加载"); return; }
-    sb=window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {auth:{persistSession:true, autoRefreshToken:true, storageKey:"travel-app-auth-v1"}}); }
+    sb=window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {auth:{persistSession:true, autoRefreshToken:true, storageKey:"travel-app-auth-v1"}});
+    if(!authSyncBound){
+      authSyncBound=true;
+      sb.auth.onAuthStateChange((event,next)=>{
+        session=next||null;
+        username=session?.user?.user_metadata?.username||session?.user?.email||username||"";
+        if(event==="SIGNED_IN"&&session){
+          afterLogin().catch(error=>console.warn("登录状态同步失败:",error));
+        }else if(event==="SIGNED_OUT"){
+          loggedIn=false; confirmedByCity={}; confirmedStates={}; window.__plannerFavoriteCountryKeys=new Set();
+          setEntryMode("pending"); renderCountryEntry(); renderStatus();
+        }
+      });
+    }
+    if(!storageSyncBound){
+      storageSyncBound=true;
+      window.addEventListener("storage",(event)=>{
+        if(event.key!=="travel-app-auth-v1") return;
+        getSession().then(async next=>{
+          if(next) await afterLogin();
+          else { loggedIn=false; setEntryMode("pending"); renderCountryEntry(); renderStatus(); }
+        }).catch(error=>console.warn("跨页面登录状态同步失败:",error));
+      });
+    }
+  }
   async function loadPublicCatalog(){
     if(!SUPABASE_READY) return false;
     initClient();
@@ -1895,8 +1924,8 @@ const TAF = (function(){
     if(r.data&&r.data.session){ session=r.data.session; username=u; localStorage.removeItem(GUEST_KEY); closeModal(); showToast("注册成功，已登录："+u); await afterLogin(); }
     else { showMsg("注册成功！若开启了邮箱确认，请查收邮件后再登录。",false); }
   }
-  function doGuest(){ localStorage.setItem(GUEST_KEY,"1"); closeModal(); loggedIn=false; confirmedByCity={}; confirmedStates={}; window.__plannerFavoriteCountryKeys=new Set(); entryMode="guest"; renderStatus(); window.renderPlannerV2?.(); showToast("游客模式：显示公开目录（仅本机）"); }
-  function doLogout(){ if(sb) sb.auth.signOut(); session=null; username=null; loggedIn=false; confirmedByCity={}; confirmedStates={}; window.__plannerFavoriteCountryKeys=new Set(); entryMode="pending"; localStorage.removeItem(GUEST_KEY); renderStatus(); window.renderPlannerV2?.(); showToast("已退出登录"); }
+  function doGuest(){ localStorage.setItem(GUEST_KEY,"1"); closeModal(); loggedIn=false; confirmedByCity={}; confirmedStates={}; window.__plannerFavoriteCountryKeys=new Set(); setEntryMode("guest"); renderStatus(); renderCountryEntry(); showToast("游客模式：显示公开目录（仅本机）"); }
+  function doLogout(){ if(sb) sb.auth.signOut(); session=null; username=null; loggedIn=false; confirmedByCity={}; confirmedStates={}; window.__plannerFavoriteCountryKeys=new Set(); setEntryMode("pending"); localStorage.removeItem(GUEST_KEY); renderStatus(); renderCountryEntry(); showToast("已退出登录"); }
   async function loadAll(){
     if(!session) return null; initClient(); if(!sb) return null;
     const r=await sb.from("user_country_list_items").select("id,attraction_id,visit_mode").eq("user_id", session.user.id);
@@ -1952,6 +1981,8 @@ const TAF = (function(){
     return r.data?.active_trip_id||"";
   }
   async function afterLogin(){
+    if(afterLoginPromise) return afterLoginPromise;
+    afterLoginPromise=(async()=>{
     loggedIn=true; renderStatus();
     const sel=await loadAll();
     confirmedByCity={}; confirmedStates={}; catalogByKey={};
@@ -1961,14 +1992,16 @@ const TAF = (function(){
       window.__plannerFavoriteCountryKeys=sel.favoriteCountryKeys||new Set();
       BASE_UNITS.forEach(unit=>{ if(sel.favoriteCountryKeys?.has(unit.countryKey)) unit.favoriteCount=sel.favoriteCounts?.[unit.countryKey]||0; });
     }
-    entryMode="favorites";
+    setEntryMode("favorites");
     maybeAutoFill();
     if(plan.enteredPlan) renderPlan();
     else if(plan.days && plan.days.length) renderCitySelect();
     await hydrateEntryTrip(true);
     const cnt=Object.keys(confirmedByCity).length;
     showToast(cnt ? `已从云端同步 ${cnt} 座城市的精选景点 ✓` : "已登录，但未找到收藏景点");
-    window.renderPlannerV2?.();
+    renderCountryEntry();
+    })();
+    try { return await afterLoginPromise; } finally { afterLoginPromise=null; }
   }
   function renderStatus(){
     const slot=el("plannerAccountButton");
@@ -1984,7 +2017,7 @@ const TAF = (function(){
     initializePlannerUI();
     const s=await getSession();
     if(s){ session=s; await afterLogin(); }
-    else { entryMode=localStorage.getItem(GUEST_KEY)==="1"?"guest":"pending"; await hydrateEntryTrip(false); window.renderPlannerV2?.(); }
+    else { setEntryMode(localStorage.getItem(GUEST_KEY)==="1"?"guest":"pending"); await hydrateEntryTrip(false); renderCountryEntry(); }
   }
   let tries=0;
   (function wait(){ if(!SUPABASE_READY || (window.supabase&&window.supabase.createClient)){ if(SUPABASE_READY) initClient(); boot(); } else if(tries++<60){ setTimeout(wait,100); } else { console.warn("Supabase SDK 未加载，仅游客/本机模式"); boot(); } })();
@@ -2335,6 +2368,8 @@ function initializePlannerUI(){
   const sheet=document.getElementById("plannerV2Sheet");
   let screen="country", plannerView="overview", addDay=-1, addKind="", insertAt=-1, mapFocusIndex=-1, mapStage=0, routeDraft=null, routeFocus="";
   let entryMode="pending"; // pending -> login/guest; favorites -> 登录用户收藏；guest -> 游客公开目录
+  window.__plannerSetEntryMode=(mode)=>{ entryMode=mode||"pending"; };
+  window.__plannerShowCountry=()=>{ screen="country"; plannerView="overview"; addDay=-1; addKind=""; insertAt=-1; window.renderPlannerV2?.(); };
   const routeCache=new Map();
   let leafletMap=null, leafletHost=null, leafletRouteLayer=null;
   const routeRefreshPending=new Set();
