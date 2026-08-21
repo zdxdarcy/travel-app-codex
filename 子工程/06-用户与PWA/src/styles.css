@@ -169,7 +169,7 @@ h3 { margin-bottom: 7px; font-size: 18px; }
 .detail-chip-bar { display: flex; gap: 8px; overflow-x: auto; padding: 2px 1px 8px; scrollbar-width: thin; }
 .detail-chip { flex: 0 0 auto; padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 12px; font-weight: 800; white-space: nowrap; }
 .detail-chip:hover, .detail-chip.is-active { border-color: var(--green); background: var(--green-soft); color: var(--green); }
-.recommendation-detail-deck { display: flex; justify-content: center; gap: 18px; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; padding: 0 max(0px, calc((100% - min(100%, 940px)) / 2)) 8px; scroll-behavior: smooth; scroll-snap-type: x mandatory; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
+.recommendation-detail-deck { display: flex; justify-content: flex-start; gap: 18px; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; padding: 0 max(0px, calc((100% - min(100%, 940px)) / 2)) 8px; scroll-behavior: smooth; scroll-snap-type: x mandatory; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
 .attraction-detail-card { flex: 0 0 min(100%, 940px); min-width: 0; padding: 22px; border: 1px solid var(--line); background: var(--surface); box-shadow: var(--shadow); scroll-margin-top: 80px; scroll-snap-align: start; }
 .attraction-detail-card.is-selected { border-color: #9bc9bc; }
 .enhanced-detail-layout { display: block; margin-top: 18px; }
