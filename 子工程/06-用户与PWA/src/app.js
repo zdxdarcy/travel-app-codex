@@ -307,8 +307,10 @@ function renderLatestRelease() {
 async function hydrateLatestRecommendations(force = false) {
   const cached = readLatestCache();
   const cacheAge = cached ? Date.now() - cached.cachedAt : Infinity;
-  if (cached && ((!force && cacheAge <= LATEST_CACHE_TTL) || (!client.isConfigured() && cacheAge <= LATEST_CACHE_STALE_LIMIT))) {
-    state.latest = { status: "ready", items: latestCityItems(cached.items), fromCache: true, cachedAt: cached.cachedAt, requestId: state.latest.requestId };
+  const cachedItems = cached ? latestCityItems(cached.items) : [];
+  const cacheHasExpectedCountries = cachedItems.length >= 2;
+  if (cached && cacheHasExpectedCountries && ((!force && cacheAge <= LATEST_CACHE_TTL) || (!client.isConfigured() && cacheAge <= LATEST_CACHE_STALE_LIMIT))) {
+    state.latest = { status: "ready", items: cachedItems, fromCache: true, cachedAt: cached.cachedAt, requestId: state.latest.requestId };
     renderLatestRelease();
     return;
   }
@@ -320,8 +322,8 @@ async function hydrateLatestRecommendations(force = false) {
   }
   latestFeedRequest = (async () => {
     const requestId = state.latest.requestId + 1;
-    const cachedItems = cached && cacheAge <= LATEST_CACHE_STALE_LIMIT ? latestCityItems(cached.items) : [];
-    state.latest = { status: "loading", items: cachedItems, fromCache: Boolean(cachedItems.length), cachedAt: cached?.cachedAt || 0, requestId };
+    const staleItems = cached && cacheHasExpectedCountries && cacheAge <= LATEST_CACHE_STALE_LIMIT ? cachedItems : [];
+    state.latest = { status: "loading", items: staleItems, fromCache: Boolean(staleItems.length), cachedAt: cached?.cachedAt || 0, requestId };
     renderLatestRelease();
     try {
       let items;
@@ -337,8 +339,8 @@ async function hydrateLatestRecommendations(force = false) {
       if (items.length) writeLatestCache(items);
     } catch (error) {
       if (state.latest.requestId !== requestId) return;
-      state.latest = cachedItems.length
-        ? { status: "error", items: cachedItems, fromCache: true, cachedAt: cached.cachedAt, requestId }
+      state.latest = staleItems.length
+        ? { status: "error", items: staleItems, fromCache: true, cachedAt: cached.cachedAt, requestId }
         : { status: "error", items: [], fromCache: false, cachedAt: 0, requestId };
       recommendationStatus(`目录暂不可用：${client.authError(error)}`);
     } finally {
