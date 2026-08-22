@@ -376,7 +376,7 @@ async function saveRecommendedRouteAsTrip(route, routeDays) {
     .map((item) => ({ countryId: route.country_id, attractionId: item.attraction_id, visitMode: "inside", note: `来自推荐路线：${route?.name_zh || "推荐路线"}` }));
   for (const selection of selections) await saveSelection(selection);
   await setActiveTrip(trip.id);
-  return { trip, selections };
+  return trip;
 }
 
 async function deleteTrip(id) {
