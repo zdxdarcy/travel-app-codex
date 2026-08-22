@@ -22,7 +22,7 @@ const makeId = () => crypto.randomUUID?.() || `trip-${Date.now()}-${Math.random(
 const EXTERNAL_VIEWS = {
   guide: "../05-当前行程导览/guide.html"
 };
-const LATEST_CACHE_KEY = "travel-app-latest-catalog-v2";
+const LATEST_CACHE_KEY = "travel-app-latest-catalog-v3";
 const LATEST_CACHE_TTL = 10 * 60 * 1000;
 const LATEST_CACHE_STALE_LIMIT = 24 * 60 * 60 * 1000;
 let latestFeedRequest = null;
@@ -266,20 +266,20 @@ function writeLatestCache(items) {
 }
 
 function latestCityItems(items) {
-  const cities = new Map();
+  const countries = new Map();
   for (const item of items || []) {
     if (!item?.id || !item.country?.id || !item.city?.id) continue;
-    if (!cities.has(item.city.id)) {
+    if (!countries.has(item.country.id)) {
       // Keep the newest attraction as the city's ordering anchor, but make
       // the city the public recommendation target.
-      cities.set(item.city.id, {
+      countries.set(item.country.id, {
         ...item,
         id: item.city.id,
         sourceAttractionId: item.id
       });
     }
   }
-  return [...cities.values()].slice(0, 2);
+  return [...countries.values()].slice(0, 2);
 }
 
 function renderLatestRelease() {
@@ -288,7 +288,7 @@ function renderLatestRelease() {
   if (!content || !status) return;
   const latest = state.latest;
   if (latest.status === "loading" && !latest.items.length) {
-    content.innerHTML = `<span class="latest-release-empty">正在读取最新上线内容。</span>`;
+    content.innerHTML = `<span class="latest-release-skeleton"></span><span class="latest-release-skeleton"></span>`;
   } else if (!latest.items.length) {
     const emptyText = latest.status === "error" && client.isConfigured()
       ? "网络不可用，暂无可用的本机缓存。"
@@ -324,7 +324,7 @@ async function hydrateLatestRecommendations(force = false) {
     state.latest = { status: "loading", items: cachedItems, fromCache: Boolean(cachedItems.length), cachedAt: cached?.cachedAt || 0, requestId };
     renderLatestRelease();
     try {
-      const rows = await client.listLatestPublishedAttractions(12);
+      const rows = await client.listLatestPublishedAttractions(24);
       const items = latestCityItems(rows);
       if (state.latest.requestId !== requestId) return;
       state.latest = { status: items.length ? "ready" : "empty", items, fromCache: false, cachedAt: Date.now(), requestId };
@@ -471,7 +471,24 @@ function renderRecommendedRouteDetail() {
     const items = (day.items || []).map((item) => `<li class="route-stop"><button class="route-stop-open" type="button" data-route-attraction="${escapeHtml(item.attraction_id)}"><span class="route-stop-order">${escapeHtml(item.planned_order)}</span><span class="route-stop-copy"><strong>${escapeHtml(item.title_snapshot)}</strong><span>${escapeHtml(item.city_name_snapshot)}${item.duration_minutes ? ` · 约 ${escapeHtml(item.duration_minutes)} 分钟` : ""}</span>${item.notes ? `<p>${escapeHtml(item.notes)}</p>` : ""}${item.transit_notes ? `<small>${escapeHtml(item.transit_notes)}</small>` : ""}</span></button></li>`).join("");
     return `<section class="route-day"><header class="route-day-heading"><div><span class="eyebrow">DAY ${escapeHtml(day.day_number)}</span><h3>${escapeHtml(day.title_zh)}</h3>${day.title_en ? `<p>${escapeHtml(day.title_en)}</p>` : ""}</div>${day.overnight_city_name_snapshot ? `<span class="route-overnight">住 ${escapeHtml(day.overnight_city_name_snapshot)}</span>` : ""}</header>${day.summary_zh ? `<p class="route-day-summary">${escapeHtml(day.summary_zh)}</p>` : ""}<ol class="route-stop-list">${items}</ol>${day.notes ? `<p class="route-day-notes">${escapeHtml(day.notes)}</p>` : ""}</section>`;
   }).join("");
-  return `<article class="route-detail-view"><button class="text-button small" type="button" data-rec-back>← 返回推荐路线</button><header class="route-detail-heading"><div><p class="eyebrow">RECOMMENDED ROUTE</p><h2>${escapeHtml(route?.name_zh || "推荐路线")}</h2><p>${escapeHtml(route?.name_en || "")}</p></div><span class="recommendation-city-count">${escapeHtml(route?.duration_days || days.length)} 天</span></header><div class="route-detail-meta"><span>${escapeHtml(route?.area_name_zh || "")}</span><span>AI 生成 · 已按景点库校验</span></div><p class="route-summary">${escapeHtml(route?.summary_zh || "")}</p><div class="route-day-list">${dayMarkup || `<div class="recommendation-empty"><strong>暂无日程</strong><span>这条路线暂时没有可显示的安排。</span></div>`}</div></article>`;
+  return `<article class="route-detail-view"><button class="text-button small" type="button" data-rec-back>← 返回推荐路线</button><header class="route-detail-heading"><div><p class="eyebrow">RECOMMENDED ROUTE</p><h2>${escapeHtml(route?.name_zh || "推荐路线")}</h2><p>${escapeHtml(route?.name_en || "")}</p></div><div class="route-detail-actions"><span class="recommendation-city-count">${escapeHtml(route?.duration_days || days.length)} 天</span><button class="primary-button small" type="button" data-save-route>＋ 保存行程</button></div></header><div class="route-detail-meta"><span>${escapeHtml(route?.area_name_zh || "")}</span><span>AI 生成 · 已按景点库校验</span></div><p class="route-summary">${escapeHtml(route?.summary_zh || "")}</p><div class="route-day-list">${dayMarkup || `<div class="recommendation-empty"><strong>暂无日程</strong><span>这条路线暂时没有可显示的安排。</span></div>`}</div></article>`;
+}
+
+async function saveCurrentRecommendedRoute() {
+  const rec = state.recommendations;
+  if (!rec.route) return;
+  if (!client.user) { authForm("login", "登录后即可把推荐路线保存到云端行程。"); return; }
+  const button = document.querySelector("[data-save-route]");
+  if (button) { button.disabled = true; button.textContent = "保存中…"; }
+  try {
+    const trip = await client.saveRecommendedRouteAsTrip(rec.route, rec.routeDays);
+    state.trips = [trip, ...state.trips.filter((item) => item.id !== trip.id)];
+    state.activeTripId = trip.id;
+    showToast("推荐路线已保存到行程");
+  } catch (error) {
+    showToast(`保存失败：${client.authError(error)}`);
+    if (button) { button.disabled = false; button.textContent = "＋ 保存行程"; }
+  }
 }
 
 function scrollRecommendationDetailChip(id) {
@@ -575,7 +592,7 @@ function renderRecommendations() {
   if (!content) return;
   recommendationBreadcrumb();
   if (state.recommendations.loading) {
-    content.innerHTML = `<div class="recommendation-empty"><strong>正在加载目录</strong><span>请稍候。</span></div>`;
+    content.innerHTML = `<div class="recommendation-loading" role="status" aria-label="正在加载目录"><span></span><span></span><span></span></div>`;
     return;
   }
   const { level, items, detail } = state.recommendations;
@@ -1387,6 +1404,8 @@ function bindEvents() {
     if (recVisit) toggleRecommendationVisit(recVisit.dataset.recVisit);
     const routeAttraction = event.target.closest("[data-route-attraction]");
     if (routeAttraction) openRouteAttraction(routeAttraction.dataset.routeAttraction);
+    const saveRoute = event.target.closest("[data-save-route]");
+    if (saveRoute) { saveCurrentRecommendedRoute(); return; }
     const collectionOpen = event.target.closest("[data-collection-open]");
     if (collectionOpen) openCollectionAttraction(collectionOpen.dataset.collectionOpen);
     const collectionVisit = event.target.closest("[data-collection-visit]");
