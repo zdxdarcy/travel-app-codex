@@ -324,8 +324,14 @@ async function hydrateLatestRecommendations(force = false) {
     state.latest = { status: "loading", items: cachedItems, fromCache: Boolean(cachedItems.length), cachedAt: cached?.cachedAt || 0, requestId };
     renderLatestRelease();
     try {
-      const rows = await client.listLatestPublishedAttractions(24);
-      const items = latestCityItems(rows);
+      let items;
+      if (typeof client.listLatestPublishedCities === "function") {
+        const cityRows = await client.listLatestPublishedCities(12);
+        items = latestCityItems((cityRows || []).map((entry) => ({ ...entry, id: entry.city?.id, city: entry.city })));
+      } else {
+        const rows = await client.listLatestPublishedAttractions(24);
+        items = latestCityItems(rows);
+      }
       if (state.latest.requestId !== requestId) return;
       state.latest = { status: items.length ? "ready" : "empty", items, fromCache: false, cachedAt: Date.now(), requestId };
       if (items.length) writeLatestCache(items);
