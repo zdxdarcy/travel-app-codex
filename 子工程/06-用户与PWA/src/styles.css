@@ -121,7 +121,7 @@ h3 { margin-bottom: 7px; font-size: 18px; }
 .route-day-summary, .route-day-notes { margin: 11px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
 .route-stop-list { display: grid; gap: 0; margin: 13px 0 0; padding: 0; list-style: none; }
 .route-stop { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; padding: 11px 0; border-top: 1px solid #edf0f0; }
-.route-stop-open { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; width: 100%; padding: 0; border: 0; background: transparent; color: var(--ink); text-align: left; }
+.route-stop-open { grid-column: 1 / -1; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; width: 100%; min-width: 0; padding: 0; border: 0; background: transparent; color: var(--ink); text-align: left; }
 .route-stop-open:hover .route-stop-copy strong { color: var(--green); }
 .route-stop-order { width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--orange-soft); color: var(--orange); font-size: 11px; font-weight: 800; }
 .route-stop-copy { display: grid; gap: 4px; min-width: 0; }
