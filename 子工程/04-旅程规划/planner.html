@@ -2058,6 +2058,7 @@ function coreItemType(item){
   if(["breakfast","lunch","dinner"].includes(item.kind)) return "meal";
   return "custom";
 }
+function isSegmentTransport(item){ return item?.kind==="transport"&&item?.custom_payload?.from&&item?.custom_payload?.to; }
 function coreCatalogFor(item){
   return catalogByKey[(item.city||"")+"::"+(item.sourceSlug||item.id||"")]||
     Object.values(catalogByKey).find(value=>value.attractionId===item.attractionId)||null;
@@ -2097,7 +2098,10 @@ function coreDayPayload(day,d){
     day_date:day.date||plan.departDate,
     notes:JSON.stringify({
       text:"",
-      planner:{cities:day.cities||[], accommodation:day.accommodation||"", transport:day.transport||"", meals:day.meals||{}}
+      planner:{cities:day.cities||[], accommodation:day.accommodation||"", transport:day.transport||"", meals:day.meals||{},
+        segmentTransports:(day.transports||[]).filter(item=>isSegmentTransport(item)).map(item=>({
+          id:item.id||"", kind:"transport", name:item.name||"", notes:item.notes||"", custom_payload:item.custom_payload||{}
+        }))}
     })
   };
 }
@@ -2153,7 +2157,7 @@ async function saveTrip(){
     for(let d=0; d<plan.days.length; d++){
       const dayResult=await sb.from("trip_days").insert(coreDayPayload(plan.days[d],d)).select("id").single();
       if(dayResult.error) throw dayResult.error;
-      const scenicItems=plan.days[d].attractions||[], transportItems=plan.days[d].transports||[];
+      const scenicItems=plan.days[d].attractions||[], transportItems=(plan.days[d].transports||[]).filter(item=>!isSegmentTransport(item));
       const items=[...scenicItems,...transportItems].map((item,index)=>coreItemPayload(item,index,dayResult.data.id));
       if(items.length){
         const itemResult=await sb.from("trip_items").insert(items);
@@ -2209,7 +2213,7 @@ async function loadTrip(tripId,{dayIndex=null}={}){
         cities:Array.isArray(dayMeta.cities)?dayMeta.cities:[],
         accommodation:dayMeta.accommodation||"",transport:dayMeta.transport||"",meals:dayMeta.meals||{},
         attractions:(itemsByDay[day.id]||[]).filter(item=>item.item_type==="attraction").map(coreItemToPlanItem),
-        transports:(itemsByDay[day.id]||[]).filter(item=>item.item_type==="transport").map(coreItemToPlanItem)
+        transports:[...(Array.isArray(dayMeta.segmentTransports)?dayMeta.segmentTransports:[]),...(itemsByDay[day.id]||[]).filter(item=>item.item_type==="transport").map(coreItemToPlanItem)]
       });
     });
     plan=Object.assign(emptyPlan(),{
