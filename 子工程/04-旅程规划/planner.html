@@ -2274,6 +2274,8 @@ async function loadTrip(tripId,{dayIndex=null}={}){
     plan.baseUnit=plan.baseUnit||inferBaseUnitFromPlan(); syncBaseUnitMeta();
     editTripId=String(h.id); newTrip=false; entryHydrationStarted=true; selSet.clear(); openPanels.clear();
     updatePlannerUrl({tripId:h.id});
+    const loadedUnit=baseUnitByKey[plan.baseUnit];
+    if(loadedUnit) await TAF.loadCountryAttractions(loadedUnit);
     savePlan(); fillSetupInputs(); closeTrip(); $("citySelectArea").style.display="none"; setStep(2); renderPlan(); focusPlanArea(plan.activeDayIndex);
     showToast("已载入行程 ✓");
     return true;
