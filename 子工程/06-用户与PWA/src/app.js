@@ -328,7 +328,7 @@ async function hydrateLatestRecommendations(force = false) {
     try {
       let items;
       if (typeof client.listLatestPublishedCities === "function") {
-        const cityRows = await client.listLatestPublishedCities(12);
+        const cityRows = await client.listLatestPublishedCities(48);
         items = latestCityItems((cityRows || []).map((entry) => ({ ...entry, id: entry.city?.id, city: entry.city })));
       } else {
         const rows = await client.listLatestPublishedAttractions(24);
