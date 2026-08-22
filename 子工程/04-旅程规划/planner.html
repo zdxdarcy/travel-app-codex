@@ -484,6 +484,12 @@
   @media print{
     .topbar,.bottom-nav,.save-fab{display:none!important}.wrap{max-width:none;padding:0 12px}#planArea{padding-bottom:0!important}.daytabs{top:0}.day-carousel{overflow:visible}.day-track{display:block}.day-card{break-inside:avoid}
   }
+  /* v2 usability fixes */
+  .pv2-setup-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+  .pv2-plan-stage .pv2-map{position:sticky;top:58px;z-index:5}
+  .pv2-plan-stage .pv2-day-body{max-height:calc(100dvh - 215px);overflow-y:auto;overscroll-behavior:contain}
+  .pv2-map-stage{cursor:grab;touch-action:none}
+  @media(max-width:680px){.pv2-plan-stage .pv2-day-body{max-height:calc(100dvh - 205px)}}
 </style>
 </head>
 <body class="planner-ui-v2">
@@ -847,6 +853,7 @@ let plan = (newTrip || editTripId) ? emptyPlan() : (loadPlan() || emptyPlan());
 let loggedIn = false;
 let confirmedByCity = {};   // ck -> Set(attractionId)  登录后=精选清单
 let confirmedStates = {};   // ck -> { attrId: "inside"|"outside" }
+let favoriteByCity = {};    // ck -> Set(attractionId)，包含全部收藏及参观方式
 let catalogByKey = {};      // city::slug -> core catalog UUID and user-list UUID
 let selSet = new Set();     // 多选的景点键：city::id
 let openPanels = new Set(); // 已展开「添加景点」面板的天索引
@@ -883,12 +890,15 @@ function normalizeItem(item,index){
 }
 function normalizeDay(day){
   if(!day || typeof day !== "object") day={};
+  const legacy=Array.isArray(day.attractions) ? day.attractions.map(normalizeItem) : [];
+  const legacySegments=legacy.filter(item=>item.kind==="transport"&&item.custom_payload?.from&&item.custom_payload?.to);
   return {
     id: day.id || "",
     dayIndex: Number.isInteger(day.dayIndex) ? day.dayIndex : 0,
     date: day.date || "",
     cities: Array.isArray(day.cities) ? day.cities : [],
-    attractions: Array.isArray(day.attractions) ? day.attractions.map(normalizeItem) : [],
+    attractions: legacy.filter(item=>!(item.kind==="transport"&&item.custom_payload?.from&&item.custom_payload?.to)),
+    transports: [...legacySegments,...(Array.isArray(day.transports) ? day.transports.map(normalizeItem) : [])],
     accommodation: day.accommodation || "",
     meals: {breakfast:"", lunch:"", dinner:"", ...(day.meals || {})},
     transport: day.transport || "",
@@ -931,12 +941,10 @@ function cityHasPlannerContent(city){
 function getPoolAttractions(city){
   const attrs = city.attractions || [];
   if(loggedIn){
-    const set = citySelectionSet(city);
-    // A city can be present in the public catalog before the user has saved
-    // any of its attractions. It must remain usable in the planner; fall
-    // back to the public catalog in that case. Once a city has list entries,
-    // keep the existing personalized filtering semantics.
-    if(!set || !set.size) return attrs;
+    const candidates=[city.cityEn,city.city,city.citySlug,city.slug,city.id].filter(Boolean).map(value=>String(value));
+    let set=null;
+    for(const value of candidates){ set=favoriteByCity[ckOf(value)]||favoriteByCity[value]; if(set instanceof Set) break; }
+    if(!set || !set.size) return [];
     return attrs.filter(a=>set.has(a.id) || set.has(a.slug) || set.has(a.attractionId));
   }
   return attrs;                               // 未登录：展示全部，便于试用
@@ -1931,7 +1939,7 @@ const TAF = (function(){
     const r=await sb.from("user_country_list_items").select("id,attraction_id,visit_mode").eq("user_id", session.user.id);
     if(r.error){ console.warn("云端读取失败:",r.error); return null; }
     const rows=(r.data||[]).filter(row=>row.attraction_id);
-    if(!rows.length) return {map:{},catalog:{},favoriteCountryKeys:new Set(),favoriteCounts:{}};
+    if(!rows.length) return {map:{},catalog:{},favoriteCountryKeys:new Set(),favoriteCounts:{},favoriteByCity:{}};
     const attractionIds=[...new Set(rows.map(row=>row.attraction_id))];
     const ar=await sb.from("attractions").select("id,slug,city_id,name_zh,name_en,tag,duration_label,map_query,opening_hours,source_url,latitude,longitude,is_active").in("id",attractionIds);
     if(ar.error){ console.warn("收藏景点读取失败:",ar.error); return null; }
@@ -1946,12 +1954,16 @@ const TAF = (function(){
     if(rr.error){ console.warn("收藏大洲读取失败:",rr.error); return null; }
     const attractionById=Object.fromEntries((ar.data||[]).map(row=>[row.id,row])), cityById=Object.fromEntries((cr.data||[]).map(row=>[row.id,row])), countryById=Object.fromEntries((cor.data||[]).map(row=>[row.id,row])), regionById=Object.fromEntries((rr.data||[]).map(row=>[row.id,row]));
     const map={};
+    const favoriteByCity={};
     const catalog={};
     const favoriteCountryKeys=new Set(), favoriteCounts={};
     rows.forEach(x=>{
       const attraction=attractionById[x.attraction_id], city=attraction&&cityById[attraction.city_id], country=city&&countryById[city.country_id], region=country&&regionById[country.region_id];
       const cityEn=city && (city.name_en||city.slug), slug=attraction && attraction.slug;
       if(!cityEn || !slug) return;
+      const favoriteKey=ckOf(cityEn), allIds=favoriteByCity[favoriteKey]?.ids||[];
+      if(!allIds.includes(slug)) allIds.push(slug);
+      favoriteByCity[favoriteKey]={ids:allIds};
       const countryKey=country?.name_en||country?.slug||""; if(!countryKey) return;
       favoriteCountryKeys.add(countryKey); favoriteCounts[countryKey]=(favoriteCounts[countryKey]||0)+1;
       catalog[cityEn+"::"+slug]={
@@ -1971,7 +1983,7 @@ const TAF = (function(){
       ids.push(slug); states[slug]=x.visit_mode;
       map[key]={ids, states};
     });
-    return {map, catalog, favoriteCountryKeys, favoriteCounts};
+    return {map, catalog, favoriteCountryKeys, favoriteCounts, favoriteByCity};
   }
   async function getActiveTripId(){
     if(!session) return "";
@@ -1985,10 +1997,11 @@ const TAF = (function(){
     afterLoginPromise=(async()=>{
     loggedIn=true; renderStatus();
     const sel=await loadAll();
-    confirmedByCity={}; confirmedStates={}; catalogByKey={};
+    confirmedByCity={}; confirmedStates={}; favoriteByCity={}; catalogByKey={};
     if(sel){
       catalogByKey=sel.catalog||{};
       Object.keys(sel.map||{}).forEach(ck=>{ confirmedByCity[ck]=new Set(sel.map[ck].ids); confirmedStates[ck]=sel.map[ck].states||{}; });
+      Object.keys(sel.favoriteByCity||{}).forEach(ck=>{ favoriteByCity[ck]=new Set(sel.favoriteByCity[ck].ids||[]); });
       window.__plannerFavoriteCountryKeys=sel.favoriteCountryKeys||new Set();
       BASE_UNITS.forEach(unit=>{ if(sel.favoriteCountryKeys?.has(unit.countryKey)) unit.favoriteCount=sel.favoriteCounts?.[unit.countryKey]||0; });
     }
@@ -2130,7 +2143,8 @@ async function saveTrip(){
     for(let d=0; d<plan.days.length; d++){
       const dayResult=await sb.from("trip_days").insert(coreDayPayload(plan.days[d],d)).select("id").single();
       if(dayResult.error) throw dayResult.error;
-      const items=plan.days[d].attractions.map((item,index)=>coreItemPayload(item,index,dayResult.data.id));
+      const scenicItems=plan.days[d].attractions||[], transportItems=plan.days[d].transports||[];
+      const items=[...scenicItems,...transportItems].map((item,index)=>coreItemPayload(item,index,dayResult.data.id));
       if(items.length){
         const itemResult=await sb.from("trip_items").insert(items);
         if(itemResult.error) throw itemResult.error;
@@ -2184,7 +2198,8 @@ async function loadTrip(tripId,{dayIndex=null}={}){
         id:day.id,dayIndex:index,date:day.day_date,notes:parsedNotes.text||String(day.notes||""),
         cities:Array.isArray(dayMeta.cities)?dayMeta.cities:[],
         accommodation:dayMeta.accommodation||"",transport:dayMeta.transport||"",meals:dayMeta.meals||{},
-        attractions:(itemsByDay[day.id]||[]).map(coreItemToPlanItem)
+        attractions:(itemsByDay[day.id]||[]).filter(item=>item.item_type==="attraction").map(coreItemToPlanItem),
+        transports:(itemsByDay[day.id]||[]).filter(item=>item.item_type==="transport").map(coreItemToPlanItem)
       });
     });
     plan=Object.assign(emptyPlan(),{
@@ -2425,14 +2440,27 @@ function initializePlannerUI(){
   function v2GoDay(index){ plan.activeDayIndex=Math.max(0,Math.min(plan.days.length-1,index)); mapFocusIndex=-1; plannerView="day"; savePlan(); renderPlannerV2(); centerActiveDayTab(); }
   function v2ShowOverview(){ plannerView="overview"; renderPlannerV2(); }
   function v2Move(dayIndex,itemIndex,direction){ const items=plan.days[dayIndex].attractions; const target=itemIndex+direction; if(target<0||target>=items.length) return; [items[itemIndex],items[target]]=[items[target],items[itemIndex]]; savePlan(); renderPlannerV2(); }
-  function v2Delete(dayIndex,itemIndex){ plan.days[dayIndex].attractions.splice(itemIndex,1); savePlan(); renderPlannerV2(); }
+  function v2Delete(dayIndex,itemIndex){
+    const day=plan.days[dayIndex];
+    const removed=day?.attractions?.[itemIndex];
+    if(!day||!removed) return;
+    day.attractions.splice(itemIndex,1);
+    // 景点删除后，清理引用它的相邻交通段，避免刷新后出现悬空路线记录。
+    if(removed.id && Array.isArray(day.transports)){
+      day.transports=day.transports.filter(item=>{
+        const payload=item?.custom_payload;
+        return !(v2IsSegmentTransport(item) && (payload.from===removed.id || payload.to===removed.id));
+      });
+    }
+    savePlan(); renderPlannerV2();
+  }
   function v2OpenAdd(dayIndex){
     addDay=dayIndex; addKind=""; insertAt=-1; sheet.hidden=false;
     sheet.innerHTML=`<section class="pv2-sheet-card pv2-action-sheet" role="dialog" aria-modal="true" aria-label="添加安排"><header class="pv2-sheet-top"><div><p class="pv2-kicker">DAY ${dayIndex+1}</p><h3>添加当天安排</h3></div><button type="button" onclick="v2CloseAdd()">×</button></header><p class="pv2-copy">所有内容都会按你添加的顺序出现在同一条日程中。</p><div class="pv2-add-options"><button onclick="v2OpenPlaces()"><b>⌖ 添加景点</b><span>从目的地城市中挑选</span></button><button onclick="v2OpenText('accommodation')"><b>▣ 添加住宿</b><span>酒店、民宿或入住安排</span></button><button onclick="v2OpenText('transport')"><b>↝ 添加交通</b><span>航班、火车、驾车或步行</span></button><button onclick="v2OpenText('custom')"><b>✦ 自定义事项</b><span>预约、用餐、休息等</span></button></div></section>`;
   }
   function v2OpenPlaces(){
     if(addDay<0) return; addKind="place"; const cities=plannerCities();
-    const sections=cities.map(city=>`<details class="pv2-city-section" data-pv2-city-section><summary><span>${esc(`${city.flag||"📍"} ${city.city}`)}</span><small>${(getPoolAttractions(city)||[]).length} 个景点</small></summary><div class="pv2-place-grid">${(getPoolAttractions(city)||[]).map(attr=>`<label class="pv2-place" data-pv2-place><input type="checkbox" data-v2-city="${esc(city.cityEn||city.city)}" data-v2-attraction="${esc(attr.id)}"><span>${esc(attr.name)}</span></label>`).join("")||"<span class='pv2-copy'>暂无可用景点</span>"}</div></details>`).join("")||"<p class='pv2-empty'>该范围暂无可添加城市。</p>";
+    const sections=cities.map(city=>({city,attrs:getPoolAttractions(city)||[]})).filter(row=>row.attrs.length).map(({city,attrs})=>`<details class="pv2-city-section" data-pv2-city-section><summary><span>${esc(`${city.flag||"📍"} ${city.city}`)}</span><small>${attrs.length} 个景点</small></summary><div class="pv2-place-grid">${attrs.map(attr=>`<label class="pv2-place" data-pv2-place><input type="checkbox" data-v2-city="${esc(city.cityEn||city.city)}" data-v2-attraction="${esc(attr.id)}"><span>${esc(attr.name)}</span></label>`).join("")}</div></details>`).join("")||"<p class='pv2-empty'>该范围暂无已收藏景点。</p>";
     sheet.innerHTML=`<section class="pv2-sheet-card" role="dialog" aria-modal="true" aria-label="添加景点"><header class="pv2-sheet-top"><div><p class="pv2-kicker">${esc(pv2Date(plannedDate(addDay)))}</p><h3>添加景点</h3></div><button type="button" onclick="v2OpenAdd(${addDay})">‹</button></header><p class="pv2-copy">选中后会自动归入当天的城市。</p><input class="pv2-search" type="search" placeholder="搜索景点或城市" oninput="v2FilterPlaces(this.value)"><div class="pv2-place-results">${sections}</div><button class="pv2-sheet-submit" type="button" onclick="v2CommitAdd()">加入当天行程</button></section>`;
   }
   function v2FilterPlaces(value){ const keyword=q(value).trim().toLowerCase(); sheet.querySelectorAll("[data-pv2-city-section]").forEach(section=>{ const show=!keyword||section.textContent.toLowerCase().includes(keyword); section.hidden=!show; section.open=!!keyword&&show; }); }
@@ -2465,7 +2493,7 @@ function initializePlannerUI(){
     handle.addEventListener("pointerdown",event=>{ startY=event.clientY; dragged=false; handle.setPointerCapture?.(event.pointerId); event.preventDefault(); });
     handle.addEventListener("pointermove",event=>{ if(startY==null) return; dragged=Math.abs(event.clientY-startY)>=18; });
     handle.addEventListener("pointerup",event=>{ if(startY==null) return; const delta=event.clientY-startY; startY=null; if(!dragged) return; suppressClick=true; mapStage=Math.max(0,Math.min(2,mapStage+(delta<0?1:-1))); renderPlannerV2(); });
-    handle.addEventListener("click",event=>{ if(suppressClick){ suppressClick=false; event.preventDefault(); return; } v2ToggleMapStage(); });
+    handle.addEventListener("click",event=>{ suppressClick=false; event.preventDefault(); });
     handle.addEventListener("keydown",event=>{ if(event.key==="ArrowUp"||event.key==="ArrowRight"){ event.preventDefault(); mapStage=Math.min(2,mapStage+1); renderPlannerV2(); } if(event.key==="ArrowDown"||event.key==="ArrowLeft"){ event.preventDefault(); mapStage=Math.max(0,mapStage-1); renderPlannerV2(); } });
   }
   function v2RouteChoice(mode){ if(!routeDraft) return; routeDraft.mode=mode; renderRouteSheet(); }
@@ -2499,7 +2527,7 @@ function initializePlannerUI(){
   function v2OpenSegmentTransport(dayIndex,index,nextIndex){
     const day=plan.days?.[dayIndex], from=day?.attractions?.[index], to=day?.attractions?.[nextIndex];
     if(!day||!from||!to||from===to){ showToast("交通段数据已变化，请重新选择"); return; }
-    const existing=(day.attractions||[]).find(item=>v2IsSegmentTransport(item)&&item.custom_payload.from===from.id&&item.custom_payload.to===to.id);
+    const existing=v2FindSegmentTransport(day,from,to);
     addDay=dayIndex; insertAt=index+1; addKind="transport"; routeFocus=v2RouteKey(from,to,existing?.custom_payload?.mode||v2DefaultMode(from,to)); routeDraft={from,to,mode:existing?.custom_payload?.mode||v2DefaultMode(from,to)}; sheet.hidden=false;
     try{ renderRouteSheet(routeDraft); }catch(error){ console.error("交通段打开失败",error); routeDraft=null; sheet.hidden=true; showToast("交通段暂时无法打开，请稍后重试"); }
   }
@@ -2508,7 +2536,10 @@ function initializePlannerUI(){
     if(!day||!from?.id||!to?.id){ v2CloseAdd(); showToast("交通段数据已失效"); return; }
     const label=v2RouteLabel(mode), note=v2RouteEstimate(from,to,mode), icon=mode==="walk"?"🚶":mode==="transit"?"🚌":"🚗", cleanName=value=>q(value).replace(/^[🏨🚆✦]\s*/,"");
     const item={custom:true,kind:"transport",id:`pv2-route-${Date.now()}`,name:`${icon} ${label}：${cleanName(from.name)} → ${cleanName(to.name)}`,city:"",tag:"交通",notes:note,custom_payload:{mode,from:from.id,to:to.id,estimate:note}};
-    const oldIndex=day.attractions.findIndex(row=>v2IsSegmentTransport(row)&&row.custom_payload.from===from.id&&row.custom_payload.to===to.id); if(oldIndex>=0) day.attractions.splice(oldIndex,1,item); else day.attractions.splice(Math.max(0,Math.min(insertAt,day.attractions.length)),0,item); day.transport=item.name; savePlan(); v2CloseAdd(); renderPlannerV2();
+    day.transports=Array.isArray(day.transports)?day.transports:[];
+    const oldIndex=day.transports.findIndex(row=>v2IsSegmentTransport(row)&&row.custom_payload.from===from.id&&row.custom_payload.to===to.id);
+    if(oldIndex>=0) day.transports.splice(oldIndex,1,item); else day.transports.push(item);
+    savePlan(); v2CloseAdd(); renderPlannerV2();
   }
   function v2Reorder(dayIndex,from,to){ const rows=plan.days[dayIndex]?.attractions||[]; if(from===to||from<0||to<0||from>=rows.length||to>=rows.length) return; const [item]=rows.splice(from,1); rows.splice(to,0,item); savePlan(); renderPlannerV2(); }
   function bindV2Sort(){
@@ -2527,7 +2558,9 @@ function initializePlannerUI(){
     });
   }
   function v2IsSegmentTransport(item){ return item?.kind==="transport"&&item?.custom_payload?.from&&item?.custom_payload?.to; }
-  function v2Leg(dayIndex,index,nextIndex){ const day=plan.days[dayIndex], from=day.attractions[index], to=day.attractions[nextIndex], existing=(day.attractions||[]).find(item=>v2IsSegmentTransport(item)&&item.custom_payload.from===from.id&&item.custom_payload.to===to.id), mode=existing?.custom_payload?.mode||v2DefaultMode(from,to), key=v2RouteKey(from,to,mode), summary=existing?.notes||v2RouteEstimate(from,to,mode), icon=mode==="walk"?"🚶":mode==="transit"?"🚌":"🚗"; if(key&&!routeCache.has(key)){ v2EnsureRoute(from,to,mode); scheduleRouteRefresh(key); } return `<button class="pv2-leg" type="button" onclick="v2OpenSegmentTransport(${dayIndex},${index},${nextIndex})"><span>${icon}</span>${esc(v2RouteLabel(mode))} · ${esc(summary)} <i>›</i></button>`; }
+  function v2DayTransports(day){ return Array.isArray(day?.transports)?day.transports:[]; }
+  function v2FindSegmentTransport(day,from,to){ return v2DayTransports(day).find(item=>v2IsSegmentTransport(item)&&item.custom_payload.from===from.id&&item.custom_payload.to===to.id); }
+  function v2Leg(dayIndex,index,nextIndex){ const day=plan.days[dayIndex], from=day.attractions[index], to=day.attractions[nextIndex], existing=v2FindSegmentTransport(day,from,to), mode=existing?.custom_payload?.mode||v2DefaultMode(from,to), key=v2RouteKey(from,to,mode), summary=existing?.notes||v2RouteEstimate(from,to,mode), icon=mode==="walk"?"🚶":mode==="transit"?"🚌":"🚗"; if(key&&!routeCache.has(key)){ v2EnsureRoute(from,to,mode); scheduleRouteRefresh(key); } return `<button class="pv2-leg" type="button" onclick="v2OpenSegmentTransport(${dayIndex},${index},${nextIndex})"><span>${icon}</span>${esc(v2RouteLabel(mode))} · ${esc(summary)} <i>›</i></button>`; }
   function v2Stop(item,dayIndex,index){ const custom=!!item.custom, city=cityByEn[item.city], type=custom?(item.tag||"自定义"):(item.tag||"景点"), emoji=custom?(item.kind==="accommodation"?"🏨":item.kind==="transport"?"🚆":"✦"):(city?.flag||"📍"); const title=custom?item.name.replace(/^[🏨🚆✦]\s*/,""):item.name; return `<article class="pv2-stop" data-v2-stop data-v2-day="${dayIndex}" data-v2-index="${index}"><div class="pv2-stop-thumb">${esc(emoji)}</div><div><div class="pv2-stop-type">${esc(type)}</div><div class="pv2-stop-title"><span>${esc(`${index+1}. ${title}`)}</span></div>${item.notes?`<span class="pv2-stop-note">${esc(item.notes)}</span>`:""}</div><div class="pv2-stop-tools">${!custom?`<button class="pv2-map-pin" title="在规划地图中定位" onclick="v2FocusMap(${index})">⌖</button>`:""}<button data-v2-drag type="button" title="拖拽排序" aria-label="拖拽排序">⠿</button><button title="删除" onclick="v2Delete(${dayIndex},${index})">×</button></div></article>`; }
   function renderCountry(){
     const selected=selectedCountry(), areaRegions=regions(), list=countries();
@@ -2540,10 +2573,10 @@ function initializePlannerUI(){
       : `<span class="pv2-copy">${selected?`已选择 ${esc(selected.label)}`:"请先选择国家"}</span>`;
     return `<section class="pv2-shell"><p class="pv2-kicker">${entryMode==="guest"?"GUEST MODE":"MY SAVED PLACES"}</p><h1 class="pv2-title">从大洲和国家开始规划</h1><p class="pv2-copy">${entryMode==="guest"?"游客模式显示公开目录；登录后将自动切换为只显示收藏景点涉及的国家。":"只显示当前账户收藏景点涉及的国家，并按大洲分组。"}</p>${cards}<div class="pv2-entry-foot">${regionControl}<button class="pv2-primary" ${selected?"":"disabled"} onclick="v2ToSetup()">进入规划 →</button></div></section>`;
   }
-  function renderSetup(){ const start=inputDate(plan.departDate,today()), end=inputDate(plan.returnDate,calendarPlus(start,2)); return `<section class="pv2-shell"><div class="pv2-setup"><section class="pv2-setup-card"><p class="pv2-kicker">${esc(selectedCountry()?.label||"TRIP")}</p><h2>设置旅程时间</h2><div class="pv2-fields"><label class="pv2-field">出发日期<input id="pv2Start" type="date" value="${esc(start)}"></label><label class="pv2-field">返程日期<input id="pv2End" type="date" value="${esc(end)}"></label><label class="pv2-field full">行程名称<input id="pv2Name" value="${esc(plan.tripName)}" placeholder="如 秋季巴伐利亚自驾"></label><label class="pv2-field full">旅行备注<input id="pv2Notes" value="${esc(plan.notes)}" placeholder="节奏、偏好或同行人说明"></label></div><div class="pv2-setup-actions"><button class="pv2-secondary" onclick="v2BackToCountry()">返回国家选择</button></div></section><aside class="pv2-setup-aside"><b>先搭建日期框架</b><p>生成后会以总览开始；每天都可直接加入景点、住宿、交通和自定义事项，并通过拖拽调整顺序。</p><button class="pv2-primary" onclick="v2CreatePlan()">生成每日行程</button></aside></div></section>`; }
+  function renderSetup(){ const start=inputDate(plan.departDate,today()), end=inputDate(plan.returnDate,calendarPlus(start,2)); return `<section class="pv2-shell"><div class="pv2-setup"><section class="pv2-setup-card"><div class="pv2-setup-card-head"><div><p class="pv2-kicker">${esc(selectedCountry()?.label||"TRIP")}</p><h2>设置旅程时间</h2></div><button class="pv2-secondary" onclick="v2BackToCountry()">返回国家选择</button></div><div class="pv2-fields"><label class="pv2-field">出发日期<input id="pv2Start" type="date" value="${esc(start)}"></label><label class="pv2-field">返程日期<input id="pv2End" type="date" value="${esc(end)}"></label><label class="pv2-field full">行程名称<input id="pv2Name" value="${esc(plan.tripName)}" placeholder="如 秋季巴伐利亚自驾"></label><label class="pv2-field full">旅行备注<input id="pv2Notes" value="${esc(plan.notes)}" placeholder="节奏、偏好或同行人说明"></label></div></section><aside class="pv2-setup-aside"><b>先搭建日期框架</b><p>生成后会以总览开始；每天都可直接加入景点、住宿、交通和自定义事项，并通过拖拽调整顺序。</p><button class="pv2-primary" onclick="v2CreatePlan()">生成每日行程</button></aside></div></section>`; }
   function v2Bounds(places){ const points=places.map(row=>v2Coords(row.item)).filter(Boolean); if(!points.length) return null; let minLat=Math.min(...points.map(point=>point.lat)), maxLat=Math.max(...points.map(point=>point.lat)), minLng=Math.min(...points.map(point=>point.lng)), maxLng=Math.max(...points.map(point=>point.lng)); const latSpan=Math.max(.012,(maxLat-minLat)), lngSpan=Math.max(.016,(maxLng-minLng)), padLat=Math.max(.006,latSpan*.18), padLng=Math.max(.008,lngSpan*.18); return {minLat:minLat-padLat,maxLat:maxLat+padLat,minLng:minLng-padLng,maxLng:maxLng+padLng}; }
   function v2PointPercent(point,bounds){ return {x:((point.lng-bounds.minLng)/(bounds.maxLng-bounds.minLng))*100,y:(1-(point.lat-bounds.minLat)/(bounds.maxLat-bounds.minLat))*100}; }
-  function v2RouteSvg(day,places,bounds){ if(!bounds) return ""; const segments=[]; places.slice(0,-1).forEach((from,pos)=>{ const to=places[pos+1], existing=(day.attractions||[]).find(item=>v2IsSegmentTransport(item)&&item.custom_payload.from===from.item.id&&item.custom_payload.to===to.item.id), mode=existing?.custom_payload?.mode||v2DefaultMode(from.item,to.item), key=v2RouteKey(from.item,to.item,mode); if(routeFocus&&routeFocus!==key) return; const route=key&&routeCache.get(key); if(route?.status==="ok"&&route.coordinates?.length){ const points=route.coordinates.map(([lat,lng])=>{ const p=v2PointPercent({lat,lng},bounds); return `${p.x.toFixed(2)},${p.y.toFixed(2)}`; }).join(" "); segments.push(`<polyline points="${points}"/>`); }else if(key&&!routeCache.has(key)) v2EnsureRoute(from.item,to.item,mode).then(()=>{ if(plannerView==="day") renderPlannerV2(); }); }); return segments.length?`<svg class="pv2-route-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${segments.join("")}</svg>`:""; }
+  function v2RouteSvg(day,places,bounds){ if(!bounds) return ""; const segments=[]; places.slice(0,-1).forEach((from,pos)=>{ const to=places[pos+1], existing=v2FindSegmentTransport(day,from.item,to.item), mode=existing?.custom_payload?.mode||v2DefaultMode(from.item,to.item), key=v2RouteKey(from.item,to.item,mode); if(routeFocus&&routeFocus!==key) return; const route=key&&routeCache.get(key); if(route?.status==="ok"&&route.coordinates?.length){ const points=route.coordinates.map(([lat,lng])=>{ const p=v2PointPercent({lat,lng},bounds); return `${p.x.toFixed(2)},${p.y.toFixed(2)}`; }).join(" "); segments.push(`<polyline points="${points}"/>`); }else if(key&&!routeCache.has(key)) v2EnsureRoute(from.item,to.item,mode).then(()=>{ if(plannerView==="day") renderPlannerV2(); }); }); return segments.length?`<svg class="pv2-route-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${segments.join("")}</svg>`:""; }
   function mountLeafletPlanMap(day){
     const host=root.querySelector("[data-v2-leaflet-map]");
     if(!host||!window.L) return;
@@ -2561,7 +2594,7 @@ function initializePlannerUI(){
     });
     const routeLines=[];
     places.slice(0,-1).forEach((from,pos)=>{
-      const to=places[pos+1], existing=(day.attractions||[]).find(item=>v2IsSegmentTransport(item)&&item.custom_payload.from===from.item.id&&item.custom_payload.to===to.item.id), mode=existing?.custom_payload?.mode||v2DefaultMode(from.item,to.item), key=v2RouteKey(from.item,to.item,mode), route=key&&routeCache.get(key);
+      const to=places[pos+1], existing=v2FindSegmentTransport(day,from.item,to.item), mode=existing?.custom_payload?.mode||v2DefaultMode(from.item,to.item), key=v2RouteKey(from.item,to.item,mode), route=key&&routeCache.get(key);
       if(routeFocus&&routeFocus!==key) return;
       if(route?.status==="ok"&&route.coordinates?.length) routeLines.push(L.polyline(route.coordinates,{color:"#3e9f8b",weight:4,opacity:.8,lineCap:"round",lineJoin:"round"}).addTo(leafletMap));
       else if(key){ if(!routeCache.has(key)) v2EnsureRoute(from.item,to.item,mode); scheduleRouteRefresh(key); }
@@ -2571,7 +2604,7 @@ function initializePlannerUI(){
   }
   function renderPlanMap(day,active){ const places=v2Places(day), bounds=v2Bounds(places); if(!places.length) return `<section class="pv2-map"><div class="pv2-map-placeholder"><b>当日地图</b><span>添加景点后显示路网与地点编号。</span></div><div class="pv2-map-actions"><button class="pv2-map-action" onclick="v2ShowMapAll()">全览</button></div></section>`; if(!bounds) return `<section class="pv2-map"><div class="pv2-map-placeholder"><b>该地点暂无坐标</b><span>已加入日程，但当前目录没有可用经纬度，暂时无法定位地图。</span></div><div class="pv2-map-actions"><button class="pv2-map-action" onclick="v2ShowMapAll()">全览</button></div></section>`; return `<section class="pv2-map"><div class="pv2-leaflet-map" data-v2-leaflet-map aria-label="当日路网地图"></div><div class="pv2-map-actions"><button class="pv2-map-action" onclick="v2ShowMapAll()">全览</button></div></section>`; }
   function renderOverview(){ const total=plan.days.reduce((sum,day)=>sum+(day.attractions||[]).length,0); return `<section class="pv2-overview"><header class="pv2-overview-head"><p class="pv2-kicker">TRIP OVERVIEW</p><h2>${esc(plan.tripName||`${selectedCountry()?.label||""}行程`)}</h2><p>${esc(`${plan.departDate||"未设出发日期"} 至 ${plan.returnDate||"未设返程日期"} · ${plan.days.length} 天 · ${total} 项安排`)}</p></header><div class="pv2-overview-grid">${plan.days.map((day,index)=>`<button class="pv2-overview-day" onclick="v2GoDay(${index})"><span>D${index+1} · ${esc(pv2Date(plannedDate(index)))}</span><b>${esc(dayTitle(day,index))}</b><small>${esc((day.attractions||[]).slice(0,3).map(item=>item.name.replace(/^[🏨🚆✦]\s*/,"")).join(" · ")||"尚未安排地点")}</small><em>${(day.attractions||[]).length} 项安排 →</em></button>`).join("")}</div></section>`; }
-  function renderDayStops(day,active){ const indexed=(day.attractions||[]).map((item,index)=>({item,index})).filter(row=>!v2IsSegmentTransport(row.item)); return indexed.length?indexed.map((row,position)=>{ const next=indexed[position+1]; const route=row.item.custom||!next||next.item.custom?"":v2Leg(active,row.index,next.index); return `${v2Stop(row.item,active,row.index)}${route}`; }).join(""):`<div class="pv2-empty">点击右上角 ＋，从所选国家的城市中添加景点、住宿、交通或自定义事项。</div>`; }
+  function renderDayStops(day,active){ const indexed=(day.attractions||[]).map((item,index)=>({item,index})); return indexed.length?indexed.map((row,position)=>{ const next=indexed[position+1]; const route=row.item.custom||!next||next.item.custom?"":v2Leg(active,row.index,next.index); return `${v2Stop(row.item,active,row.index)}${route}`; }).join(""):`<div class="pv2-empty">点击右上角 ＋，从所选国家的城市中添加景点、住宿或自定义事项。</div>`; }
   function renderPlanV2(){ const active=plan.activeDayIndex||0, day=plan.days[active]||{}, date=plannedDate(active), stops=day.attractions||[], title=plan.tripName||`${selectedCountry()?.label||""}行程`; const body=plannerView==="overview"?renderOverview():`<section class="pv2-day-body"><header class="pv2-day-heading"><div><h2>${esc(pv2Date(date))} ${esc(dayTitle(day,active))}</h2><p>${esc(day.cities?.length?`${day.cities.length} 座城市 · ${stops.filter(item=>!v2IsSegmentTransport(item)).length} 项安排`:"尚未添加地点")}</p></div><button class="pv2-add" aria-label="添加安排" onclick="v2OpenAdd(${active})">＋</button></header><div class="pv2-stops">${renderDayStops(day,active)}</div></section>`; const handle=plannerView==="overview"?"":`<button class="pv2-map-stage" type="button" aria-label="切换地图显示范围" title="拖动调整地图高度"><span aria-hidden="true"></span><em>${["展开地图","更大地图","收起地图"][mapStage]}</em></button>`; return `<div class="pv2-plan-stage pv2-plan-stage-${mapStage}">${plannerView==="overview"?"":renderPlanMap(day,active)}<section class="pv2-trip-panel">${handle}<header class="pv2-trip-top"><div><h1>${esc(title)}</h1><p>${esc(`${plan.departDate||"未设出发日期"} 至 ${plan.returnDate||"未设返程日期"} · ${plan.days.length} 天`)}</p></div><button class="pv2-edit" onclick="v2EditBasics()">返回编辑日期</button></header><nav class="pv2-days" aria-label="选择日期"><button class="pv2-daytab pv2-overview-tab${plannerView==="overview"?" is-active":""}" onclick="v2ShowOverview()">总览</button>${plan.days.map((entry,index)=>`<button class="pv2-daytab${plannerView==="day"&&index===active?" is-active":""}" onclick="v2GoDay(${index})">D${index+1}<small>${esc(pv2Date(plannedDate(index)).slice(0,5))}</small></button>`).join("")}</nav>${body}</section></div><button class="pv2-save" onclick="saveTrip()" aria-label="保存到云端" title="保存到云端"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h12l3 3v15H4V3M8 21v-7h8v7"/></svg></button>`; }
   window.renderPlannerV2=function(){ if(!root) return; document.body.classList.add("planner-ui-v2"); if(!catalogReady&&!CITIES.length){ root.innerHTML="<section class='pv2-shell'><p class='pv2-empty'>正在加载国家目录…</p></section>"; return; } if(plan.enteredPlan&&plan.days?.length&&screen!=="setup") screen="plan"; if(leafletMap){ leafletMap.remove(); leafletMap=null; leafletHost=null; leafletRouteLayer=null; } root.innerHTML=screen==="country"?renderCountry():screen==="setup"?renderSetup():renderPlanV2(); if(screen==="plan"){ bindV2Sort(); bindV2MapStage(); const missing=root.querySelector(".pv2-map-placeholder"); if(missing&&missing.textContent.includes("地图坐标加载中")) missing.innerHTML="<b>该地点暂无坐标</b><span>已加入日程，但当前目录没有可用经纬度，暂时无法定位地图.</span>"; if(plannerView!=="overview") mountLeafletPlanMap(plan.days[plan.activeDayIndex||0]||{}); } };
   window.v2SetCountry=v2SetCountry; window.v2SetRegion=v2SetRegion; window.v2ToSetup=v2ToSetup; window.v2CreatePlan=v2CreatePlan; window.v2EditBasics=v2EditBasics; window.v2BackToCountry=v2BackToCountry; window.v2GoDay=v2GoDay; window.v2ShowOverview=v2ShowOverview; window.v2Move=v2Move; window.v2Delete=v2Delete; window.v2OpenAdd=v2OpenAdd; window.v2OpenPlaces=v2OpenPlaces; window.v2FilterPlaces=v2FilterPlaces; window.v2OpenText=v2OpenText; window.v2CloseAdd=v2CloseAdd; window.v2CommitAdd=v2CommitAdd; window.v2CommitText=v2CommitText; window.v2OpenMap=v2OpenMap; window.v2FocusMap=v2FocusMap; window.v2ShowMapAll=v2ShowMapAll; window.v2ToggleMapStage=v2ToggleMapStage; window.v2OpenSegmentTransport=v2OpenSegmentTransport; window.v2RouteChoice=v2RouteChoice; window.v2CommitRoute=v2CommitRoute;
