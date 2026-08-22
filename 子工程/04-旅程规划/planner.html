@@ -697,6 +697,7 @@ let BASE_UNITS = [];
 let baseUnitByKey = {};
 let catalogSource = "fallback";
 let catalogReady = !SUPABASE_READY;
+const catalogAttractionsByCountry = new Set();
 function rebuildCatalogIndexes(){
   cityByEn = {};
   CITIES.forEach(c => { cityByEn[c.cityEn || c.city] = c; });
@@ -727,15 +728,15 @@ function buildBaseUnits(cities){
   cities.forEach(city=>{
     const countryKey=countryKeyOf(city);
     const continent=continentMeta(city.continent||city.continentEn||city.region||city.regionEn);
-    if(!grouped.has(countryKey)) grouped.set(countryKey,{key:countryKey,label:countryLabelOf(city),flag:city.flag||"",regions:new Map(),continent});
+    if(!grouped.has(countryKey)) grouped.set(countryKey,{key:countryKey,label:countryLabelOf(city),flag:city.flag||"",countryId:city.countryId||"",regions:new Map(),continent});
     const country=grouped.get(countryKey), regionLabel=regionLabelOf(city), regionKey=regionKeyOf(city);
     if(regionLabel && regionKey && !country.regions.has(regionKey)) country.regions.set(regionKey,{key:regionKey,label:regionLabel});
   });
   const units=[];
   grouped.forEach(country=>{
     const regions=[...country.regions.values()], regional=regions.length>1;
-    units.push({key:`country:${country.key}`,type:"country",countryKey:country.key,label:country.label,flag:country.flag,cityCount:cities.filter(c=>countryKeyOf(c)===country.key).length,regional,continentKey:country.continent.key,continentLabel:country.continent.label});
-    if(regional) regions.forEach(region=>units.push({key:`region:${country.key}:${region.key}`,type:"region",countryKey:country.key,regionKey:region.key,label:`${country.label} · ${region.label}`,regionLabel:region.label,cityCount:cities.filter(c=>countryKeyOf(c)===country.key && regionKeyOf(c)===region.key).length,regional:true}));
+    units.push({key:`country:${country.key}`,type:"country",countryKey:country.key,countryId:country.countryId,label:country.label,flag:country.flag,cityCount:cities.filter(c=>countryKeyOf(c)===country.key).length,regional,continentKey:country.continent.key,continentLabel:country.continent.label});
+    if(regional) regions.forEach(region=>units.push({key:`region:${country.key}:${region.key}`,type:"region",countryKey:country.key,countryId:country.countryId,regionKey:region.key,label:`${country.label} · ${region.label}`,regionLabel:region.label,cityCount:cities.filter(c=>countryKeyOf(c)===country.key && regionKeyOf(c)===region.key).length,regional:true}));
   });
   return units;
 }
@@ -1899,26 +1900,66 @@ const TAF = (function(){
     initClient();
     if(!sb) return false;
     try{
-      const [regionsResult,countriesResult,citiesResult,attractionsResult]=await Promise.all([
-        sb.from("regions").select("id,parent_region_id,region_type,name_zh,name_en,slug,code,is_active").eq("is_active",true),
-        sb.from("countries").select("id,region_id,iso_code,name_zh,name_en,slug,is_active").eq("is_active",true),
-        sb.from("cities").select("id,country_id,region_id,name_zh,name_en,slug,latitude,longitude,is_active").eq("is_active",true),
-        sb.from("attractions").select("id,city_id,slug,name_zh,name_en,tag,summary_zh,duration_label,map_query,opening_hours,source_url,latitude,longitude,is_active").eq("is_active",true)
+      // The entry screen only needs the geographic directory. Attractions are
+      // deliberately loaded later for the country the user chooses.
+      const readAll=async build=>{
+        const pageSize=1000, rows=[];
+        for(let from=0;;from+=pageSize){
+          const result=await build().order("id",{ascending:true}).range(from,from+pageSize-1);
+          if(result.error) throw result.error;
+          const page=result.data||[];
+          rows.push(...page);
+          if(page.length<pageSize) return rows;
+        }
+      };
+      const [regions,countries,citiesResult]=await Promise.all([
+        readAll(()=>sb.from("regions").select("id,parent_region_id,region_type,name_zh,name_en,slug,code,is_active").eq("is_active",true)),
+        readAll(()=>sb.from("countries").select("id,region_id,iso_code,name_zh,name_en,slug,is_active").eq("is_active",true)),
+        readAll(()=>sb.from("cities").select("id,country_id,region_id,name_zh,name_en,slug,latitude,longitude,is_active").eq("is_active",true))
       ]);
-      const resultError=[regionsResult,countriesResult,citiesResult,attractionsResult].find(result=>result.error);
-      if(resultError) throw resultError.error;
-      const regions=regionsResult.data||[], countries=countriesResult.data||[];
       const activeRegionIds=new Set(regions.map(row=>row.id));
       const activeCountryIds=new Set(countries.filter(row=>activeRegionIds.has(row.region_id)).map(row=>row.id));
-      const cities=(citiesResult.data||[]).filter(row=>activeCountryIds.has(row.country_id) && (!row.region_id || activeRegionIds.has(row.region_id)));
-      const attractions=(attractionsResult.data||[]).filter(row=>cities.some(city=>city.id===row.city_id));
-      const next=normalizeDatabaseCatalog({regions,countries:countries.filter(row=>activeRegionIds.has(row.region_id)),cities,attractions});
+      const cities=citiesResult.filter(row=>activeCountryIds.has(row.country_id) && (!row.region_id || activeRegionIds.has(row.region_id)));
+      const next=normalizeDatabaseCatalog({regions,countries:countries.filter(row=>activeRegionIds.has(row.region_id)),cities,attractions:[]});
       applyCatalog(next,"database");
       return true;
     }catch(error){
       console.warn("公开景点目录读取失败，使用 planner-data.js 兜底:",error);
       return false;
     }
+  }
+  async function loadCountryAttractions(country){
+    const countryId=country?.countryId||country?.id;
+    if(!countryId || catalogAttractionsByCountry.has(countryId) || !SUPABASE_READY) return true;
+    initClient(); if(!sb) return false;
+    const countryCities=CITIES.filter(city=>city.countryId===countryId);
+    const cityIds=countryCities.map(city=>city.cityId||city.id).filter(Boolean);
+    if(!cityIds.length){ catalogAttractionsByCountry.add(countryId); return true; }
+    try{
+      const pageSize=1000, rows=[];
+      for(let from=0;;from+=pageSize){
+        const result=await sb.from("attractions").select("id,city_id,slug,name_zh,name_en,tag,summary_zh,duration_label,map_query,opening_hours,source_url,latitude,longitude,is_active").eq("is_active",true).in("city_id",cityIds).order("id",{ascending:true}).range(from,from+pageSize-1);
+        if(result.error) throw result.error;
+        const page=result.data||[]; rows.push(...page);
+        if(page.length<pageSize) break;
+      }
+      const byCity={};
+      rows.forEach(item=>{ (byCity[item.city_id]||(byCity[item.city_id]=[])).push(item); });
+      CITIES=CITIES.map(city=>{
+        if(city.countryId!==countryId) return city;
+        const cityEn=city.cityEn||city.city;
+        return {...city,attractions:(byCity[city.cityId||city.id]||[]).map(item=>({
+          id:item.slug, attractionId:item.id, cityId:city.cityId||city.id, slug:item.slug,
+          name:item.name_zh||item.name_en||item.slug, nameEn:item.name_en||item.slug,
+          tag:item.tag||"", duration:item.duration_label||"", hours:openingHoursLabel(item.opening_hours),
+          mapQuery:item.map_query||item.name_en||item.name_zh||`${item.slug} ${cityEn}`,
+          latitude:Number.isFinite(Number(item.latitude))?Number(item.latitude):null,
+          longitude:Number.isFinite(Number(item.longitude))?Number(item.longitude):null,
+          summary:item.summary_zh||"", sourceUrl:item.source_url||""
+        }))};
+      });
+      rebuildCatalogIndexes(); catalogAttractionsByCountry.add(countryId); return true;
+    }catch(error){ console.warn("所选国家景点目录读取失败:",error); return false; }
   }
   function el(id){ return document.getElementById(id); }
   function openModal(){ const m=el("tafAuthModal"); if(m) m.classList.add("open"); }
@@ -2053,7 +2094,7 @@ const TAF = (function(){
   let tries=0;
   (function wait(){ if(!SUPABASE_READY || (window.supabase&&window.supabase.createClient)){ if(SUPABASE_READY) initClient(); boot(); } else if(tries++<60){ setTimeout(wait,100); } else { console.warn("Supabase SDK 未加载，仅游客/本机模式"); boot(); } })();
   return { login:doLogin, signup:doSignup, guest:doGuest, logout:doLogout, open:openModal,
-           getSb:()=>sb, getSession:()=>session, getActiveTripId };
+           getSb:()=>sb, getSession:()=>session, getActiveTripId, loadCountryAttractions };
 })();
 function openAuth(){ const m=document.getElementById("tafAuthModal"); if(m) m.classList.add("open"); }
 
@@ -2433,8 +2474,16 @@ function initializePlannerUI(){
   function regions(){ const country=selectedCountry(); return country?BASE_UNITS.filter(unit=>unit.type==="region"&&unit.countryKey===country.countryKey):[]; }
   function pv2Date(value){ if(!value) return "未设置日期"; const d=new Date(`${value}T00:00:00`); return `${String(d.getMonth()+1).padStart(2,"0")}.${String(d.getDate()).padStart(2,"0")} ${WD[d.getDay()]}`; }
   function dayTitle(day,index){ const city=day.cities?.map(key=>cityByEn[key]?.city).filter(Boolean).join(" · "); return city||`第 ${index+1} 天`; }
-  function v2SetCountry(key){ plan.baseUnit=key; syncBaseUnitMeta(); savePlan(); renderPlannerV2(); }
-  function v2SetRegion(value){ plan.baseUnit=value; syncBaseUnitMeta(); savePlan(); renderPlannerV2(); }
+  async function v2SetCountry(key){
+    plan.baseUnit=key; syncBaseUnitMeta(); savePlan(); renderPlannerV2();
+    const country=selectedCountry();
+    if(country){ await TAF.loadCountryAttractions(country); renderPlannerV2(); }
+  }
+  async function v2SetRegion(value){
+    plan.baseUnit=value; syncBaseUnitMeta(); savePlan(); renderPlannerV2();
+    const country=selectedCountry();
+    if(country){ await TAF.loadCountryAttractions(country); renderPlannerV2(); }
+  }
   function v2ToSetup(){ if(!selectedCountry()){ showToast("请先选择目的国家"); return; } screen="setup"; renderPlannerV2(); }
   function v2CreatePlan(){
     const start=document.getElementById("pv2Start")?.value||"";
