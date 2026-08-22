@@ -105,13 +105,16 @@ h3 { margin-bottom: 7px; font-size: 18px; }
 .recommendation-empty strong { color: var(--ink); font-size: 16px; }
 .route-detail-view { display: grid; gap: 16px; }
 .route-detail-heading { align-items: end; display: flex; justify-content: space-between; gap: 16px; padding: 18px 0 4px; border-bottom: 1px solid var(--line); }
+.route-detail-heading > div:first-child { flex: 1 1 auto; min-width: 0; }
 .route-detail-heading h2 { margin-bottom: 4px; }
+.route-detail-heading h2, .route-detail-heading p, .route-detail-meta span { overflow-wrap: anywhere; }
 .route-detail-heading p:not(.eyebrow) { margin: 0; color: var(--muted); font-size: 13px; }
 .route-detail-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; color: var(--green); font-size: 12px; font-weight: 800; }
 .route-summary { max-width: 700px; margin: 0; color: var(--muted); font-size: 14px; line-height: 1.7; }
 .route-day-list { display: grid; gap: 20px; }
 .route-day { padding: 18px 0 20px; border-bottom: 1px solid var(--line); }
 .route-day-heading { display: flex; align-items: start; justify-content: space-between; gap: 14px; }
+.route-day-heading > div { min-width: 0; }
 .route-day-heading h3 { margin: 0; font-size: 18px; }
 .route-day-heading p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
 .route-overnight { flex: 0 0 auto; color: var(--orange); font-size: 12px; font-weight: 800; }
@@ -360,8 +363,11 @@ h3 { margin-bottom: 7px; font-size: 18px; }
   .detail-heading .visit-mode { margin: 0; align-self: start; }
   .city-attraction-heading { align-items: start; }
   .route-detail-heading { align-items: start; }
-  .route-detail-actions { justify-content: flex-start; }
+  .route-detail-heading { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .route-detail-actions { width: 100%; justify-content: flex-start; }
+  .route-detail-actions .primary-button { flex: 1 1 auto; min-width: 0; }
   .route-day-heading { flex-direction: column; }
+  .route-overnight { white-space: normal; }
   .collection-error { align-items: start; flex-wrap: wrap; }
   .collection-error .secondary-button { margin-left: auto; }
   .collection-attraction { grid-template-columns: minmax(0, 1fr); }
