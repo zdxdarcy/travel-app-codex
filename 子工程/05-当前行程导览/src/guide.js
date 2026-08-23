@@ -259,12 +259,24 @@ function safeMapUrl(value) {
   }
 }
 
+function customMapQuery(item) {
+  if (!item || item.kind !== "custom") return null;
+  const metadata = item.metadata || {};
+  const semanticKind = String(metadata.kind || metadata.semantic_kind || metadata.item_kind || "").trim().toLowerCase();
+  if (["transport", "lodging", "accommodation", "parking", "pickup", "dropoff", "start", "meal", "breakfast", "lunch", "dinner"].includes(semanticKind)) return null;
+  const payload = metadata.payload && typeof metadata.payload === "object" ? metadata.payload : {};
+  const value = payload.map_query || payload.mapQuery || payload.location_text || payload.locationText || metadata.location_text || metadata.locationText;
+  if (!value || !String(value).trim()) return null;
+  const city = item.cityName ? `, ${item.cityName}` : "";
+  return `${String(value).trim()}${city}`;
+}
+
 function mapTarget(item) {
   const details = item.details || {};
   const logistics = item.logistics || {};
   const metadata = item.metadata || {};
   const directUrl = safeMapUrl(details.mapUrl || logistics.mapUrl || metadata.map_url || metadata.mapUrl);
-  const query = details.mapQuery || logistics.mapQuery || metadata.map_query || metadata.mapQuery || coordinateQuery(details) || coordinateQuery(logistics) || coordinateQuery(metadata);
+  const query = details.mapQuery || logistics.mapQuery || metadata.map_query || metadata.mapQuery || coordinateQuery(details) || coordinateQuery(logistics) || coordinateQuery(metadata) || customMapQuery(item);
   return directUrl ? { href: directUrl, query } : query ? { href: guideClient.externalMapUrl(query), query } : null;
 }
 

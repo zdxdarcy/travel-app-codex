@@ -2541,14 +2541,29 @@ function initializePlannerUI(){
   function v2FilterPlaces(value){ const keyword=q(value).trim().toLowerCase(); sheet.querySelectorAll("[data-pv2-city-section]").forEach(section=>{ const show=!keyword||section.textContent.toLowerCase().includes(keyword); section.hidden=!show; section.open=!!keyword&&show; }); }
   function v2OpenText(kind){
     if(addDay<0) return; addKind=kind; const label={accommodation:"住宿",transport:"交通",custom:"自定义事项"}[kind];
-    sheet.innerHTML=`<section class="pv2-sheet-card pv2-text-sheet" role="dialog" aria-modal="true" aria-label="添加${esc(label)}"><header class="pv2-sheet-top"><div><p class="pv2-kicker">${esc(pv2Date(plannedDate(addDay)))}</p><h3>添加${esc(label)}</h3></div><button type="button" onclick="v2OpenAdd(${addDay})">‹</button></header><label class="pv2-text-field">${esc(label)}名称<input id="pv2TextValue" autocomplete="off" placeholder="${kind==='accommodation'?'如 柏林米特酒店':kind==='transport'?'如 柏林 → 德累斯顿 ICE': '如 18:30 晚餐预约'}"></label><label class="pv2-text-field">补充说明（可选）<input id="pv2TextNote" autocomplete="off" placeholder="如 时间、预订号或提醒"></label><button class="pv2-sheet-submit" type="button" onclick="v2CommitText()">加入当天行程</button></section>`;
+    const locationField=kind==='custom'?`<label class="pv2-text-field">地点或地址（可选）<input id="pv2TextLocation" autocomplete="street-address" placeholder="如 柏林勃兰登堡门 / 餐厅完整地址"></label>`:"";
+    sheet.innerHTML=`<section class="pv2-sheet-card pv2-text-sheet" role="dialog" aria-modal="true" aria-label="添加${esc(label)}"><header class="pv2-sheet-top"><div><p class="pv2-kicker">${esc(pv2Date(plannedDate(addDay)))}</p><h3>添加${esc(label)}</h3></div><button type="button" onclick="v2OpenAdd(${addDay})">‹</button></header><label class="pv2-text-field">${esc(label)}名称<input id="pv2TextValue" autocomplete="off" placeholder="${kind==='accommodation'?'如 柏林米特酒店':kind==='transport'?'如 柏林 → 德累斯顿 ICE': '如 18:30 晚餐预约'}"></label>${locationField}<label class="pv2-text-field">补充说明（可选）<input id="pv2TextNote" autocomplete="off" placeholder="如 时间、预订号或提醒"></label><button class="pv2-sheet-submit" type="button" onclick="v2CommitText()">加入当天行程</button></section>`;
     document.getElementById("pv2TextValue")?.focus();
   }
-  function v2CommitText(){
-    const text=document.getElementById("pv2TextValue")?.value.trim()||"", note=document.getElementById("pv2TextNote")?.value.trim()||""; if(addDay<0||!text){ showToast("请填写内容"); return; }
+  async function v2GeocodeLocation(query,day){
+    const cityNames=(day?.cities||[]).map(key=>cityByEn[key]?.city||key).filter(Boolean);
+    const search=[query,...cityNames].filter(Boolean).join(", ");
+    const controller=new AbortController(), timer=setTimeout(()=>controller.abort(),7000);
+    try{
+      const response=await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=zh&q=${encodeURIComponent(search)}`,{signal:controller.signal,headers:{Accept:"application/json"}});
+      if(!response.ok) return null;
+      const rows=await response.json(), row=Array.isArray(rows)?rows[0]:null;
+      const latitude=Number(row?.lat), longitude=Number(row?.lon);
+      return Number.isFinite(latitude)&&Number.isFinite(longitude)?{latitude,longitude}:null;
+    }catch(error){ return null; } finally { clearTimeout(timer); }
+  }
+  async function v2CommitText(){
+    const text=document.getElementById("pv2TextValue")?.value.trim()||"", location=document.getElementById("pv2TextLocation")?.value.trim()||"", note=document.getElementById("pv2TextNote")?.value.trim()||""; if(addDay<0||!text){ showToast("请填写内容"); return; }
     const labels={custom:"自定义安排",accommodation:"住宿",transport:"交通"}, kind=addKind, day=plan.days[addDay];
     const icon=kind==="accommodation"?"🏨":kind==="transport"?"🚆":"✦";
-    const item={custom:true,kind,id:`pv2-${kind}-${Date.now()}`,name:`${icon} ${text}`,city:"",tag:labels[kind],notes:note,custom_payload:{value:text,note}};
+    const customPayload={value:text,note};
+    if(kind==="custom" && location){ customPayload.map_query=location; const coordinates=await v2GeocodeLocation(location,day); if(coordinates){ customPayload.latitude=coordinates.latitude; customPayload.longitude=coordinates.longitude; } }
+    const item={custom:true,kind,id:`pv2-${kind}-${Date.now()}`,name:`${icon} ${text}`,city:"",tag:labels[kind],notes:note,custom_payload:customPayload};
     if(kind==="transport") day.transports=(Array.isArray(day.transports)?day.transports:[]).concat(item);
     else if(insertAt>=0) day.attractions.splice(insertAt,0,item); else day.attractions.push(item);
     if(kind==="accommodation") day.accommodation=text; if(kind==="transport") day.transport=text;
@@ -2556,8 +2571,8 @@ function initializePlannerUI(){
   }
   function v2CloseAdd(){ addDay=-1; addKind=""; insertAt=-1; routeDraft=null; routeFocus=""; sheet.hidden=true; sheet.innerHTML=""; }
   function v2CommitAdd(){ if(addDay<0) return; let added=0; sheet.querySelectorAll("[data-v2-attraction]:checked").forEach(node=>{ const city=node.dataset.v2City, id=node.dataset.v2Attraction; if(addAttraction(addDay,city,id)) added++; }); savePlan(); v2CloseAdd(); renderPlannerV2(); showToast(added?`已加入 ${added} 个地点`:"所选地点已在行程中"); }
-  function v2Places(day){ return (day.attractions||[]).map((item,index)=>({item,index,source:!item.custom&&sourceAttraction(item)})).filter(row=>!row.item.custom); }
-  function v2MapItem(day){ const items=day.attractions||[]; const item=mapFocusIndex>=0&&items[mapFocusIndex]?items[mapFocusIndex]:items.find(row=>!row.custom); const source=item&&!item.custom&&sourceAttraction(item); return {item,query:source?.mapQuery||item?.name||day.cities?.map(key=>cityByEn[key]?.city).find(Boolean)||""}; }
+  function v2Places(day){ return (day.attractions||[]).map((item,index)=>({item,index,source:!item.custom&&sourceAttraction(item)})).filter(row=>!row.item.custom||v2Coords(row.item)); }
+  function v2MapItem(day){ const items=day.attractions||[]; const item=mapFocusIndex>=0&&items[mapFocusIndex]?items[mapFocusIndex]:items.find(row=>v2Coords(row)); const source=item&&!item.custom&&sourceAttraction(item); return {item,query:source?.mapQuery||item?.custom_payload?.map_query||item?.name||day.cities?.map(key=>cityByEn[key]?.city).find(Boolean)||""}; }
   function v2MapQuery(day){ return v2MapItem(day).query; }
   function v2OpenMap(){ const map=root.querySelector(".pv2-map"); if(map) map.scrollIntoView({behavior:"smooth",block:"start"}); }
   function v2FocusMap(index){ mapFocusIndex=index; renderPlannerV2(); v2OpenMap(); }
@@ -2584,6 +2599,9 @@ function initializePlannerUI(){
   function v2RouteChoice(mode){ if(!routeDraft) return; routeDraft.mode=mode; renderRouteSheet(); }
   function v2RouteLabel(mode){ return {walk:"步行",drive:"驾车",transit:"公共交通"}[mode]||"驾车"; }
   function v2Coords(item){
+    const payload=item?.custom_payload||{};
+    const customLat=Number(payload.latitude), customLng=Number(payload.longitude);
+    if(Number.isFinite(customLat)&&Number.isFinite(customLng)) return {lat:customLat,lng:customLng};
     const source=sourceAttraction(item)||item;
     const lat=Number(source?.latitude), lng=Number(source?.longitude);
     if(Number.isFinite(lat)&&Number.isFinite(lng)) return {lat,lng};
@@ -2656,7 +2674,7 @@ function initializePlannerUI(){
   function v2DayTransports(day){ return Array.isArray(day?.transports)?day.transports:[]; }
   function v2FindSegmentTransport(day,from,to){ return v2DayTransports(day).find(item=>v2IsSegmentTransport(item)&&item.custom_payload.from===from.id&&item.custom_payload.to===to.id); }
   function v2Leg(dayIndex,index,nextIndex){ const day=plan.days[dayIndex], from=day.attractions[index], to=day.attractions[nextIndex], existing=v2FindSegmentTransport(day,from,to), mode=existing?.custom_payload?.mode||v2DefaultMode(from,to), key=v2RouteKey(from,to,mode), summary=existing?.notes||v2RouteEstimate(from,to,mode), icon=mode==="walk"?"🚶":mode==="transit"?"🚌":"🚗"; if(key&&!routeCache.has(key)){ v2EnsureRoute(from,to,mode); scheduleRouteRefresh(key); } return `<button class="pv2-leg" type="button" onclick="v2OpenSegmentTransport(${dayIndex},${index},${nextIndex})"><span>${icon}</span>${esc(v2RouteLabel(mode))} · ${esc(summary)} <i>›</i></button>`; }
-  function v2Stop(item,dayIndex,index){ const custom=!!item.custom, city=cityByEn[item.city], type=custom?(item.tag||"自定义"):(item.tag||"景点"), emoji=custom?(item.kind==="accommodation"?"🏨":item.kind==="transport"?"🚆":"✦"):(city?.flag||"📍"); const title=custom?item.name.replace(/^[🏨🚆✦]\s*/,""):item.name; return `<article class="pv2-stop" data-v2-stop data-v2-day="${dayIndex}" data-v2-index="${index}"><div class="pv2-stop-thumb">${esc(emoji)}</div><div><div class="pv2-stop-type">${esc(type)}</div><div class="pv2-stop-title"><span>${esc(`${index+1}. ${title}`)}</span></div>${item.notes?`<span class="pv2-stop-note">${esc(item.notes)}</span>`:""}</div><div class="pv2-stop-tools">${!custom?`<button class="pv2-map-pin" title="在规划地图中定位" onclick="v2FocusMap(${index})">⌖</button>`:""}<button data-v2-drag type="button" title="拖拽排序" aria-label="拖拽排序">⠿</button><button title="删除" onclick="v2Delete(${dayIndex},${index})">×</button></div></article>`; }
+  function v2Stop(item,dayIndex,index){ const custom=!!item.custom, city=cityByEn[item.city], type=custom?(item.tag||"自定义"):(item.tag||"景点"), emoji=custom?(item.kind==="accommodation"?"🏨":item.kind==="transport"?"🚆":"✦"):(city?.flag||"📍"); const title=custom?item.name.replace(/^[🏨🚆✦]\s*/,""):item.name; const hasMap=!!v2Coords(item)&&item.kind!=="transport"; return `<article class="pv2-stop" data-v2-stop data-v2-day="${dayIndex}" data-v2-index="${index}"><div class="pv2-stop-thumb">${esc(emoji)}</div><div><div class="pv2-stop-type">${esc(type)}</div><div class="pv2-stop-title"><span>${esc(`${index+1}. ${title}`)}</span></div>${item.notes?`<span class="pv2-stop-note">${esc(item.notes)}</span>`:""}</div><div class="pv2-stop-tools">${hasMap?`<button class="pv2-map-pin" title="在规划地图中定位" onclick="v2FocusMap(${index})">⌖</button>`:""}<button data-v2-drag type="button" title="拖拽排序" aria-label="拖拽排序">⠿</button><button title="删除" onclick="v2Delete(${dayIndex},${index})">×</button></div></article>`; }
   function renderCountry(){
     const selected=selectedCountry(), areaRegions=regions(), list=countries();
     if(entryMode==="pending") return `<section class="pv2-shell"><p class="pv2-kicker">TRIP PLANNER</p><h1 class="pv2-title">先登录，再从收藏开始规划</h1><p class="pv2-copy">登录后只显示你在收藏清单中有景点的国家；没有账号也可以明确进入游客模式，使用公开目录在本机规划。</p><div class="pv2-entry-foot"><button class="pv2-primary" onclick="TAF.open()">登录 / 注册</button><button class="pv2-primary pv2-secondary" onclick="TAF.guest()">游客模式</button></div></section>`;
