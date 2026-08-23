@@ -998,7 +998,8 @@ function startOfDay(d){
 function sourceAttraction(item){
   if(!item || item.custom) return null;
   const city=cityByEn[item.city];
-  return city && (city.attractions||[]).find(a=>a.id===(item.sourceSlug||item.id)) || item;
+  const key=item.sourceSlug||item.id;
+  return city && (city.attractions||[]).find(a=>a.id===key||a.slug===key||a.attractionId===item.attractionId||a.attractionId===key) || item;
 }
 function durationMinutes(text){
   const s=String(text||"").replace(/小时/g,"h").replace(/分钟/g,"min");
@@ -1958,7 +1959,8 @@ const TAF = (function(){
           summary:item.summary_zh||"", sourceUrl:item.source_url||""
         }))};
       });
-      rebuildCatalogIndexes(); catalogAttractionsByCountry.add(countryId); return true;
+      applyCatalog(CITIES,"database");
+      catalogAttractionsByCountry.add(countryId); return true;
     }catch(error){ console.warn("所选国家景点目录读取失败:",error); return false; }
   }
   function el(id){ return document.getElementById(id); }
