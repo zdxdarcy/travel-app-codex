@@ -2623,20 +2623,34 @@ function initializePlannerUI(){
   }
   function v2RouteChoice(mode){ if(!routeDraft) return; routeDraft.mode=mode; renderRouteSheet(); }
   function v2RouteLabel(mode){ return {walk:"步行",drive:"驾车",transit:"公共交通"}[mode]||"驾车"; }
+  function v2CoordinateNumber(value){
+    if(typeof value==="string") value=value.trim().replace(/,/g,".");
+    const number=Number(value); return Number.isFinite(number)?number:null;
+  }
+  function v2CoordinatePair(latitude,longitude){
+    const lat=v2CoordinateNumber(latitude), lng=v2CoordinateNumber(longitude);
+    return lat!=null&&lng!=null&&lat>=-90&&lat<=90&&lng>=-180&&lng<=180?{lat,lng}:null;
+  }
+  function v2StoredCoords(value){
+    if(!value||typeof value!=="object") return null;
+    const direct=v2CoordinatePair(value.latitude??value.lat,value.longitude??value.lng??value.lon);
+    if(direct) return direct;
+    const coordinates=Array.isArray(value.coordinates)?value.coordinates:Array.isArray(value.geometry?.coordinates)?value.geometry.coordinates:null;
+    return coordinates?.length>=2?v2CoordinatePair(coordinates[1],coordinates[0]):null;
+  }
   function v2Coords(item){
     const payload=item?.custom_payload&&typeof item.custom_payload==="object"?item.custom_payload:{};
     const metadata=item?.metadata&&typeof item.metadata==="object"?item.metadata:{};
-    const customLat=Number(payload.latitude!=null?payload.latitude:metadata.latitude), customLng=Number(payload.longitude!=null?payload.longitude:metadata.longitude);
-    if((payload.latitude!=null||metadata.latitude!=null)&&(payload.longitude!=null||metadata.longitude!=null)&&Number.isFinite(customLat)&&Number.isFinite(customLng)) return {lat:customLat,lng:customLng};
+    const custom=v2StoredCoords(payload)||v2StoredCoords(metadata)||v2StoredCoords(payload.location)||v2StoredCoords(metadata.location);
+    if(custom) return custom;
     const source=sourceAttraction(item)||item;
-    const lat=Number(source?.latitude), lng=Number(source?.longitude);
-    if(source?.latitude!=null&&source?.longitude!=null&&Number.isFinite(lat)&&Number.isFinite(lng)) return {lat,lng};
+    const sourceCoords=v2StoredCoords(source);
+    if(sourceCoords) return sourceCoords;
     // Several imported catalogues (including the current NZ set) only have a
     // city centroid. It is still a meaningful fallback for displaying the
     // day map; route precision is simply limited until POI coordinates arrive.
     const city=cityByEn[item?.city]||CITIES.find(row=>row.city===item?.city||row.cityEn===item?.city);
-    const cityLat=Number(city?.latitude), cityLng=Number(city?.longitude);
-    return city?.latitude!=null&&city?.longitude!=null&&Number.isFinite(cityLat)&&Number.isFinite(cityLng)?{lat:cityLat,lng:cityLng}:null;
+    return v2StoredCoords(city);
   }
   function v2RouteKey(from,to,mode){ const a=v2Coords(from), b=v2Coords(to); return a&&b?`${mode}:${a.lng},${a.lat}:${b.lng},${b.lat}`:""; }
   function v2DefaultMode(from,to){ return from?.city&&to?.city&&from.city===to.city?"walk":"drive"; }
