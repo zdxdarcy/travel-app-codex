@@ -1824,7 +1824,15 @@ function resolveCityKey(cityName, metadata={}){
   return found ? (found.cityEn||found.city) : "";
 }
 function coreItemToPlanItem(item){
-  const metadata=item.metadata && typeof item.metadata === "object" ? item.metadata : {};
+  const rawMetadata=item.metadata && typeof item.metadata === "object" ? item.metadata : {};
+  const metadata=rawMetadata;
+  const nestedPayload=metadata.payload && typeof metadata.payload === "object" ? metadata.payload : {};
+  // Older custom items stored coordinates/map queries beside `payload`, while
+  // newer items keep them inside it. Normalize both forms for the planner.
+  const customPayload={...nestedPayload};
+  ["latitude","longitude","map_query"].forEach(key=>{
+    if(customPayload[key]==null && metadata[key]!=null) customPayload[key]=metadata[key];
+  });
   const ref=Object.values(catalogByKey).find(value=>value.attractionId===item.attraction_id) ||
     CITIES.flatMap(city=>(city.attractions||[]).map(attraction=>({
       ...attraction,
@@ -1848,7 +1856,7 @@ function coreItemToPlanItem(item){
     hours:metadata.hours||catalog?.hours||"",
     custom,
     kind:metadata.kind||metadata.item_kind||itemType,
-    custom_payload:metadata.payload||{},
+    custom_payload:customPayload,
     visitMode:normalizeVisitMode(item.visit_mode),
     attractionId:item.attraction_id||"",
     cityId:metadata.source_city_id||metadata.city_id||ref?.cityId||"",
@@ -2070,10 +2078,11 @@ const TAF = (function(){
     maybeAutoFill();
     if(plan.enteredPlan) renderPlan();
     else if(plan.days && plan.days.length) renderCitySelect();
-    await hydrateEntryTrip(true);
+    const hydrated=await hydrateEntryTrip(true);
+    if(hydrated && plan.enteredPlan) window.__plannerShowLoadedPlan?.();
     const cnt=Object.keys(confirmedByCity).length;
     showToast(cnt ? `已从云端同步 ${cnt} 座城市的精选景点 ✓` : "已登录，但未找到收藏景点");
-    renderCountryEntry();
+    if(!hydrated && !plan.enteredPlan) renderCountryEntry();
     })();
     try { return await afterLoginPromise; } finally { afterLoginPromise=null; }
   }
@@ -2452,6 +2461,11 @@ function initializePlannerUI(){
   let entryMode=window.__plannerEntryMode||"pending"; // pending -> login/guest; favorites -> 登录用户收藏；guest -> 游客公开目录
   window.__plannerSetEntryMode=(mode)=>{ entryMode=mode||"pending"; window.__plannerEntryMode=entryMode; };
   window.__plannerShowCountry=()=>{ screen="country"; plannerView="overview"; addDay=-1; addKind=""; insertAt=-1; window.renderPlannerV2?.(); };
+  window.__plannerShowLoadedPlan=()=>{
+    if(!plan.enteredPlan||!plan.days?.length) return;
+    screen="plan"; plannerView="overview"; addDay=-1; addKind=""; insertAt=-1;
+    window.renderPlannerV2?.();
+  };
   const routeCache=new Map();
   let leafletMap=null, leafletHost=null, leafletRouteLayer=null;
   const routeRefreshPending=new Set();
