@@ -2572,7 +2572,7 @@ function initializePlannerUI(){
   function v2CloseAdd(){ addDay=-1; addKind=""; insertAt=-1; routeDraft=null; routeFocus=""; sheet.hidden=true; sheet.innerHTML=""; }
   function v2CommitAdd(){ if(addDay<0) return; let added=0; sheet.querySelectorAll("[data-v2-attraction]:checked").forEach(node=>{ const city=node.dataset.v2City, id=node.dataset.v2Attraction; if(addAttraction(addDay,city,id)) added++; }); savePlan(); v2CloseAdd(); renderPlannerV2(); showToast(added?`已加入 ${added} 个地点`:"所选地点已在行程中"); }
   function v2Places(day){ return (day.attractions||[]).map((item,index)=>({item,index,source:!item.custom&&sourceAttraction(item)})).filter(row=>!row.item.custom||v2Coords(row.item)); }
-  function v2MapItem(day){ const items=day.attractions||[]; const item=mapFocusIndex>=0&&items[mapFocusIndex]?items[mapFocusIndex]:items.find(row=>v2Coords(row)); const source=item&&!item.custom&&sourceAttraction(item); return {item,query:source?.mapQuery||item?.custom_payload?.map_query||item?.name||day.cities?.map(key=>cityByEn[key]?.city).find(Boolean)||""}; }
+  function v2MapItem(day){ const items=day.attractions||[]; const item=mapFocusIndex>=0&&items[mapFocusIndex]?items[mapFocusIndex]:items.find(row=>v2Coords(row)); const source=item&&!item.custom&&sourceAttraction(item); const metadata=item?.metadata&&typeof item.metadata==="object"?item.metadata:{}; const payload=item?.custom_payload&&typeof item.custom_payload==="object"?item.custom_payload:{}; return {item,query:source?.mapQuery||payload.map_query||metadata.map_query||item?.name||day.cities?.map(key=>cityByEn[key]?.city).find(Boolean)||""}; }
   function v2MapQuery(day){ return v2MapItem(day).query; }
   function v2OpenMap(){ const map=root.querySelector(".pv2-map"); if(map) map.scrollIntoView({behavior:"smooth",block:"start"}); }
   function v2FocusMap(index){ mapFocusIndex=index; renderPlannerV2(); v2OpenMap(); }
@@ -2599,9 +2599,10 @@ function initializePlannerUI(){
   function v2RouteChoice(mode){ if(!routeDraft) return; routeDraft.mode=mode; renderRouteSheet(); }
   function v2RouteLabel(mode){ return {walk:"步行",drive:"驾车",transit:"公共交通"}[mode]||"驾车"; }
   function v2Coords(item){
-    const payload=item?.custom_payload||{};
-    const customLat=Number(payload.latitude), customLng=Number(payload.longitude);
-    if(payload.latitude!=null&&payload.longitude!=null&&Number.isFinite(customLat)&&Number.isFinite(customLng)) return {lat:customLat,lng:customLng};
+    const payload=item?.custom_payload&&typeof item.custom_payload==="object"?item.custom_payload:{};
+    const metadata=item?.metadata&&typeof item.metadata==="object"?item.metadata:{};
+    const customLat=Number(payload.latitude!=null?payload.latitude:metadata.latitude), customLng=Number(payload.longitude!=null?payload.longitude:metadata.longitude);
+    if((payload.latitude!=null||metadata.latitude!=null)&&(payload.longitude!=null||metadata.longitude!=null)&&Number.isFinite(customLat)&&Number.isFinite(customLng)) return {lat:customLat,lng:customLng};
     const source=sourceAttraction(item)||item;
     const lat=Number(source?.latitude), lng=Number(source?.longitude);
     if(source?.latitude!=null&&source?.longitude!=null&&Number.isFinite(lat)&&Number.isFinite(lng)) return {lat,lng};
