@@ -1384,7 +1384,7 @@ function bindEvents() {
     const editTrip = event.target.closest("[data-edit-trip]");
     if (editTrip) {
       const tripId = editTrip.dataset.editTrip;
-      if (tripId) { setView("planner"); const frame=$("#plannerModuleFrame"); if(frame) frame.src=`../04-旅程规划/planner.html?embedded=1&tripId=${encodeURIComponent(tripId)}`; }
+      if (tripId) { setView("planner"); const frame=$("#plannerModuleFrame"); if(frame) frame.src=`../04-旅程规划/planner.html?embedded=1&tripId=${encodeURIComponent(tripId)}&view=setup`; }
       return;
     }
     const authOpen = event.target.closest("[data-auth-open]");

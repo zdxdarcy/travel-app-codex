@@ -685,6 +685,7 @@ const PLANNER_PARAMS = new URLSearchParams(window.location.search);
 const REQUESTED_TRIP_ID = PLANNER_PARAMS.get("tripId") || PLANNER_PARAMS.get("editTripId") || "";
 const REQUESTED_NEW_TRIP = /^(1|true|yes)$/i.test(PLANNER_PARAMS.get("newTrip") || "") || PLANNER_PARAMS.get("mode") === "new";
 const REQUESTED_DAY = Number.parseInt(PLANNER_PARAMS.get("day") || PLANNER_PARAMS.get("dayIndex") || "", 10);
+const REQUESTED_SETUP = /^(1|true|yes)$/i.test(PLANNER_PARAMS.get("editDates") || "") || PLANNER_PARAMS.get("view") === "setup";
 
 // ===== 可配置项（按国家 / 项目修改） =====
 const COUNTRY = "德国";        // 用于导出标题与说明文案
@@ -2262,10 +2263,22 @@ async function loadTrip(tripId,{dayIndex=null}={}){
     const dayIds=(dr.data||[]).map(day=>day.id);
     const ir=dayIds.length ? await sb.from("trip_items").select("id,trip_day_id,item_type,attraction_id,source_list_item_id,title_snapshot,city_name_snapshot,planned_order,visit_mode,duration_minutes,notes,metadata").in("trip_day_id",dayIds).order("planned_order",{ascending:true}) : {data:[],error:null};
     if(ir.error){ showToast("读取景点安排失败："+ir.error.message); return false; }
+    const h=head.data, tripNotes=parsePlannerNotes(h.notes), tripPlanner=tripNotes.planner||{};
+    // Load the trip country before mapping trip_items. Otherwise an edited
+    // itinerary can be normalized against the empty public catalogue and lose
+    // its attraction-to-city/coordinate association (notably New Zealand).
+    let tripBaseUnit=baseUnitByKey[tripPlanner.baseUnit] ? tripPlanner.baseUnit : "";
+    if(!tripBaseUnit){
+      const cityHints=(ir.data||[]).map(item=>resolveCityKey(item.city_name_snapshot,item.metadata&&typeof item.metadata==="object"?item.metadata:{})).filter(Boolean);
+      const units=[...new Set(cityHints.map(cityKey=>baseUnitForCity(cityByEn[cityKey])).filter(Boolean))];
+      tripBaseUnit=units.length===1 ? units[0] : "";
+    }
+    const tripUnit=baseUnitByKey[tripBaseUnit];
+    const tripCountry=tripUnit?.type==="region" ? baseUnitByKey[`country:${tripUnit.countryKey}`] : tripUnit;
+    if(tripCountry) await TAF.loadCountryAttractions(tripCountry);
     const itemsByDay={};
     (ir.data||[]).forEach(item=>(itemsByDay[item.trip_day_id]||(itemsByDay[item.trip_day_id]=[])).push(item));
     Object.values(itemsByDay).forEach(items=>items.sort((a,b)=>(a.planned_order||0)-(b.planned_order||0)));
-    const h=head.data, tripNotes=parsePlannerNotes(h.notes), tripPlanner=tripNotes.planner||{};
     const days=(dr.data||[]).slice().sort((a,b)=>(a.day_number||0)-(b.day_number||0)).map((day,index)=>{
       const parsedNotes=parsePlannerNotes(day.notes), dayMeta=parsedNotes.planner||{};
       return normalizeDay({
@@ -2279,14 +2292,12 @@ async function loadTrip(tripId,{dayIndex=null}={}){
     plan=Object.assign(emptyPlan(),{
       schemaVersion:2,tripId:h.id,tripName:h.name||"",notes:tripNotes.text||"",departDate:h.start_date||"",returnDate:h.end_date||"",
       departLocation:h.start_location||"",returnLocation:h.end_location||"",snapshotRevision:0,enteredPlan:true,days,
-      baseUnit:baseUnitByKey[tripPlanner.baseUnit] ? tripPlanner.baseUnit : "",loadedFromCloud:true,
+      baseUnit:tripBaseUnit,loadedFromCloud:true,
       activeDayIndex:Number.isInteger(dayIndex) ? dayIndex : (Number.isInteger(REQUESTED_DAY) ? REQUESTED_DAY : 0)
     });
     plan.baseUnit=plan.baseUnit||inferBaseUnitFromPlan(); syncBaseUnitMeta();
     editTripId=String(h.id); newTrip=false; entryHydrationStarted=true; selSet.clear(); openPanels.clear();
     updatePlannerUrl({tripId:h.id});
-    const loadedUnit=baseUnitByKey[plan.baseUnit];
-    if(loadedUnit) await TAF.loadCountryAttractions(loadedUnit);
     savePlan(); fillSetupInputs(); closeTrip(); $("citySelectArea").style.display="none"; setStep(2); renderPlan(); focusPlanArea(plan.activeDayIndex);
     showToast("已载入行程 ✓");
     return true;
@@ -2463,7 +2474,7 @@ function initializePlannerUI(){
   window.__plannerShowCountry=()=>{ screen="country"; plannerView="overview"; addDay=-1; addKind=""; insertAt=-1; window.renderPlannerV2?.(); };
   window.__plannerShowLoadedPlan=()=>{
     if(!plan.enteredPlan||!plan.days?.length) return;
-    screen="plan"; plannerView="overview"; addDay=-1; addKind=""; insertAt=-1;
+    screen=REQUESTED_SETUP ? "setup" : "plan"; plannerView="overview"; addDay=-1; addKind=""; insertAt=-1;
     window.renderPlannerV2?.();
   };
   const routeCache=new Map();
