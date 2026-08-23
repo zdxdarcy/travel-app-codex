@@ -2601,16 +2601,16 @@ function initializePlannerUI(){
   function v2Coords(item){
     const payload=item?.custom_payload||{};
     const customLat=Number(payload.latitude), customLng=Number(payload.longitude);
-    if(Number.isFinite(customLat)&&Number.isFinite(customLng)) return {lat:customLat,lng:customLng};
+    if(payload.latitude!=null&&payload.longitude!=null&&Number.isFinite(customLat)&&Number.isFinite(customLng)) return {lat:customLat,lng:customLng};
     const source=sourceAttraction(item)||item;
     const lat=Number(source?.latitude), lng=Number(source?.longitude);
-    if(Number.isFinite(lat)&&Number.isFinite(lng)) return {lat,lng};
+    if(source?.latitude!=null&&source?.longitude!=null&&Number.isFinite(lat)&&Number.isFinite(lng)) return {lat,lng};
     // Several imported catalogues (including the current NZ set) only have a
     // city centroid. It is still a meaningful fallback for displaying the
     // day map; route precision is simply limited until POI coordinates arrive.
     const city=cityByEn[item?.city]||CITIES.find(row=>row.city===item?.city||row.cityEn===item?.city);
     const cityLat=Number(city?.latitude), cityLng=Number(city?.longitude);
-    return Number.isFinite(cityLat)&&Number.isFinite(cityLng)?{lat:cityLat,lng:cityLng}:null;
+    return city?.latitude!=null&&city?.longitude!=null&&Number.isFinite(cityLat)&&Number.isFinite(cityLng)?{lat:cityLat,lng:cityLng}:null;
   }
   function v2RouteKey(from,to,mode){ const a=v2Coords(from), b=v2Coords(to); return a&&b?`${mode}:${a.lng},${a.lat}:${b.lng},${b.lat}`:""; }
   function v2DefaultMode(from,to){ return from?.city&&to?.city&&from.city===to.city?"walk":"drive"; }
