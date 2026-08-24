@@ -2637,7 +2637,10 @@ function initializePlannerUI(){
   }
   function v2CoordinatePair(latitude,longitude){
     const lat=v2CoordinateNumber(latitude), lng=v2CoordinateNumber(longitude);
-    return lat!=null&&lng!=null&&lat>=-90&&lat<=90&&lng>=-180&&lng<=180?{lat,lng}:null;
+    // 0,0 is used by several imported/custom-location sources as an
+    // unresolved placeholder. Do not let it expand a Germany day map to the
+    // Atlantic or enter a route request.
+    return lat!=null&&lng!=null&&!(lat===0&&lng===0)&&lat>=-90&&lat<=90&&lng>=-180&&lng<=180?{lat,lng}:null;
   }
   function v2StoredCoords(value){
     if(typeof value==="string"){
@@ -2646,8 +2649,13 @@ function initializePlannerUI(){
     if(!value||typeof value!=="object") return null;
     const direct=v2CoordinatePair(value.latitude??value.lat,value.longitude??value.lng??value.lon);
     if(direct) return direct;
-    const coordinates=Array.isArray(value.coordinates)?value.coordinates:Array.isArray(value.geometry?.coordinates)?value.geometry.coordinates:null;
-    return coordinates?.length>=2?v2CoordinatePair(coordinates[1],coordinates[0]):null;
+    const coordinates=value.coordinates??value.geometry?.coordinates;
+    if(Array.isArray(coordinates)&&coordinates.length>=2) return v2CoordinatePair(coordinates[1],coordinates[0]);
+    // The guide already accepts coordinate objects. Imported custom places
+    // may use this form instead of GeoJSON's [longitude, latitude] array.
+    const nested=[coordinates,value.coordinate,value.coord,value.position,value.location,value.latLng,value.latlng];
+    for(const candidate of nested){ const point=v2StoredCoords(candidate); if(point) return point; }
+    return null;
   }
   function v2Coords(item){
     const payload=item?.custom_payload||{};
