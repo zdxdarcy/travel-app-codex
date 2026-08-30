@@ -2580,7 +2580,7 @@ function initializePlannerUI(){
   function v2OpenText(kind){
     if(addDay<0) return; addKind=kind; addDraft={text:"",location:"",note:"",lat:"",lng:""}; const label=kind==="custom"?"自定义景点":"住宿、餐饮";
     sheet.innerHTML=`<section class="pv2-sheet-card pv2-text-sheet" role="dialog" aria-modal="true" aria-label="添加${esc(label)}"><header class="pv2-sheet-top"><div><p class="pv2-kicker">${esc(pv2Date(plannedDate(addDay)))}</p><h3>添加${esc(label)}</h3></div><button type="button" onclick="v2OpenAdd(${addDay})">‹</button></header>${kind==='accommodation'?'<label class="pv2-text-field">类型<select id="pv2TextSubkind"><option value="accommodation">住宿</option><option value="meal">餐饮</option></select></label>':''}<label class="pv2-text-field">名称<input id="pv2TextValue" autocomplete="off" placeholder="${kind==='custom'?'如 新天鹅堡': '如 柏林米特酒店或当地餐厅'}"></label><label class="pv2-text-field">地址或搜索词（可选）<input id="pv2TextLocation" autocomplete="street-address" placeholder="搜索地址，或输入地图关键词"><button class="pv2-secondary" type="button" onclick="v2LocateText()">设置地图位置</button></label><div id="pv2PickerMap" class="pv2-picker-map" aria-label="地图选点"></div><div class="pv2-coordinate-fields"><label class="pv2-text-field">纬度<input id="pv2TextLat" inputmode="decimal" placeholder="latitude"></label><label class="pv2-text-field">经度<input id="pv2TextLng" inputmode="decimal" placeholder="longitude"></label></div><p class="pv2-picker-hint">可搜索地址、粘贴坐标，或在地图上长按约 0.6 秒选点。</p><label class="pv2-text-field">补充说明（可选）<input id="pv2TextNote" autocomplete="off" placeholder="如 时间、预订号或提醒"></label><button class="pv2-sheet-submit" type="button" onclick="v2CommitText()">加入当天行程</button></section>`;
-    const draftKeys={pv2TextValue:"text",pv2TextLocation:"location",pv2TextNote:"note",pv2TextLat:"lat",pv2TextLng:"lng"}; ["pv2TextValue","pv2TextLocation","pv2TextNote","pv2TextLat","pv2TextLng"].forEach(id=>{ const node=document.getElementById(id); if(node) ["input","change","blur","compositionend","pasteने"].forEach(type=>node.addEventListener(type,()=>{ if(!addDraft) addDraft={}; addDraft[draftKeys[id]]=String(node.value==null?"":node.value); })); });
+    const draftKeys={pv2TextValue:"text",pv2TextLocation:"location",pv2TextNote:"note",pv2TextLat:"lat",pv2TextLng:"lng"}; ["pv2TextValue","pv2TextLocation","pv2TextNote","pv2TextLat","pv2TextLng"].forEach(id=>{ const node=document.getElementById(id); if(node) ["input","change","blur","compositionend","paste"].forEach(type=>node.addEventListener(type,()=>{ if(!addDraft) addDraft={}; addDraft[draftKeys[id]]=String(node.value==null?"":node.value); })); });
     setTimeout(v2InitPicker,0);
     document.getElementById("pv2TextValue")?.focus();
   }
@@ -2599,6 +2599,8 @@ function initializePlannerUI(){
     }catch(error){ return null; } finally { clearTimeout(timer); }
   }
   async function v2CommitText(){
+    document.activeElement?.blur();
+    await new Promise(resolve=>setTimeout(resolve,0));
     const read=(id,key)=>{ const node=document.getElementById(id); const value=node&&typeof node.value==="string"?node.value.trim():""; const draft=addDraft&&typeof addDraft[key]==="string"?addDraft[key].trim():""; return value||draft; };
     const text=read("pv2TextValue","text"), location=read("pv2TextLocation","location"), note=read("pv2TextNote","note"); if(addDay<0||!text){ showToast("请填写名称"); return; }
     const selectedSubkind=document.getElementById("pv2TextSubkind")?.value;
