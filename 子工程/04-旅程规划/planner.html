@@ -2476,7 +2476,7 @@ function initializePlannerUI(){
 (function(){
   const root=document.getElementById("plannerV2Root");
   const sheet=document.getElementById("plannerV2Sheet");
-  let screen="country", plannerView="overview", addDay=-1, addKind="", insertAt=-1, mapFocusIndex=-1, mapStage=0, routeDraft=null, routeFocus="";
+  let screen="country", plannerView="overview", addDay=-1, addKind="", insertAt=-1, mapFocusIndex=-1, mapStage=0, routeDraft=null, routeFocus="", addDraft=null;
   let entryMode=window.__plannerEntryMode||"pending"; // pending -> login/guest; favorites -> 登录用户收藏；guest -> 游客公开目录
   window.__plannerSetEntryMode=(mode)=>{ entryMode=mode||"pending"; window.__plannerEntryMode=entryMode; };
   window.__plannerShowCountry=()=>{ screen="country"; plannerView="overview"; addDay=-1; addKind=""; insertAt=-1; window.renderPlannerV2?.(); };
@@ -2573,13 +2573,14 @@ function initializePlannerUI(){
   }
   function v2FilterPlaces(value){ const keyword=q(value).trim().toLowerCase(); sheet.querySelectorAll("[data-pv2-city-section]").forEach(section=>{ const show=!keyword||section.textContent.toLowerCase().includes(keyword); section.hidden=!show; section.open=!!keyword&&show; }); }
   function v2OpenText(kind){
-    if(addDay<0) return; addKind=kind; const label=kind==="custom"?"自定义景点":"住宿、餐饮";
+    if(addDay<0) return; addKind=kind; addDraft={text:"",location:"",note:"",lat:"",lng:""}; const label=kind==="custom"?"自定义景点":"住宿、餐饮";
     sheet.innerHTML=`<section class="pv2-sheet-card pv2-text-sheet" role="dialog" aria-modal="true" aria-label="添加${esc(label)}"><header class="pv2-sheet-top"><div><p class="pv2-kicker">${esc(pv2Date(plannedDate(addDay)))}</p><h3>添加${esc(label)}</h3></div><button type="button" onclick="v2OpenAdd(${addDay})">‹</button></header>${kind==='accommodation'?'<label class="pv2-text-field">类型<select id="pv2TextSubkind"><option value="accommodation">住宿</option><option value="meal">餐饮</option></select></label>':''}<label class="pv2-text-field">名称<input id="pv2TextValue" autocomplete="off" placeholder="${kind==='custom'?'如 新天鹅堡': '如 柏林米特酒店或当地餐厅'}"></label><label class="pv2-text-field">地址或搜索词（可选）<input id="pv2TextLocation" autocomplete="street-address" placeholder="搜索地址，或输入地图关键词"><button class="pv2-secondary" type="button" onclick="v2LocateText()">设置地图位置</button></label><div id="pv2PickerMap" class="pv2-picker-map" aria-label="地图选点"></div><div class="pv2-coordinate-fields"><label class="pv2-text-field">纬度<input id="pv2TextLat" inputmode="decimal" placeholder="latitude"></label><label class="pv2-text-field">经度<input id="pv2TextLng" inputmode="decimal" placeholder="longitude"></label></div><p class="pv2-picker-hint">可搜索地址、粘贴坐标，或在地图上长按约 0.6 秒选点。</p><label class="pv2-text-field">补充说明（可选）<input id="pv2TextNote" autocomplete="off" placeholder="如 时间、预订号或提醒"></label><button class="pv2-sheet-submit" type="button" onclick="v2CommitText()">加入当天行程</button></section>`;
+    const draftKeys={pv2TextValue:"text",pv2TextLocation:"location",pv2TextNote:"note",pv2TextLat:"lat",pv2TextLng:"lng"}; ["pv2TextValue","pv2TextLocation","pv2TextNote","pv2TextLat","pv2TextLng"].forEach(id=>{ const node=document.getElementById(id); if(node) node.addEventListener("input",()=>{ if(!addDraft) addDraft={}; addDraft[draftKeys[id]]=node.value; }); });
     setTimeout(v2InitPicker,0);
     document.getElementById("pv2TextValue")?.focus();
   }
   function v2InitPicker(){ if(!window.L) return; const host=document.getElementById("pv2PickerMap"); if(!host) return; pickerMap=L.map(host,{zoomControl:true,attributionControl:false}).setView([51.1657,10.4515],5); L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19}).addTo(pickerMap); const setPoint=(latlng)=>{ document.getElementById("pv2TextLat").value=latlng.lat.toFixed(6); document.getElementById("pv2TextLng").value=latlng.lng.toFixed(6); if(pickerMarker) pickerMarker.setLatLng(latlng); else pickerMarker=L.marker(latlng).addTo(pickerMap); }; pickerMap.on("click",e=>setPoint(e.latlng)); host.addEventListener("pointerdown",e=>{ pickerTimer=setTimeout(()=>{ const rect=host.getBoundingClientRect(); const point=pickerMap.containerPointToLatLng([e.clientX-rect.left,e.clientY-rect.top]); setPoint(point); },600); }); ["pointerup","pointercancel","pointerleave"].forEach(type=>host.addEventListener(type,()=>clearTimeout(pickerTimer))); }
-  async function v2LocateText(){ const query=document.getElementById("pv2TextLocation")?.value.trim(); if(!query){ showToast("请先输入地址或搜索词"); return; } const point=await v2GeocodeLocation(query,plan.days[addDay]); if(!point){ showToast("未找到该地点，请调整搜索词或粘贴坐标"); return; } document.getElementById("pv2TextLat").value=point.latitude.toFixed(6); document.getElementById("pv2TextLng").value=point.longitude.toFixed(6); if(pickerMap){ pickerMap.setView([point.latitude,point.longitude],15); if(pickerMarker) pickerMarker.setLatLng([point.latitude,point.longitude]); else pickerMarker=L.marker([point.latitude,point.longitude]).addTo(pickerMap); } }
+  async function v2LocateText(){ const input=document.getElementById("pv2TextLocation"); const query=input?.value.trim()||addDraft?.location?.trim()||""; if(!query){ showToast("请先输入地址或搜索词"); return; } if(addDraft) addDraft.location=query; const point=await v2GeocodeLocation(query,plan.days[addDay]); if(!point){ showToast("未找到该地点，请调整搜索词或粘贴坐标"); return; } const lat=point.latitude.toFixed(6),lng=point.longitude.toFixed(6); if(addDraft){ addDraft.lat=lat; addDraft.lng=lng; } const latNode=document.getElementById("pv2TextLat"),lngNode=document.getElementById("pv2TextLng"); if(latNode) latNode.value=lat; if(lngNode) lngNode.value=lng; if(pickerMap){ pickerMap.setView([point.latitude,point.longitude],15); if(pickerMarker) pickerMarker.setLatLng([point.latitude,point.longitude]); else pickerMarker=L.marker([point.latitude,point.longitude]).addTo(pickerMap); } }
   async function v2GeocodeLocation(query,day){
     const cityNames=(day?.cities||[]).map(key=>cityByEn[key]?.city||key).filter(Boolean);
     const search=[query,...cityNames].filter(Boolean).join(", ");
@@ -2593,13 +2594,14 @@ function initializePlannerUI(){
     }catch(error){ return null; } finally { clearTimeout(timer); }
   }
   async function v2CommitText(){
-    const text=document.getElementById("pv2TextValue")?.value.trim()||"", location=document.getElementById("pv2TextLocation")?.value.trim()||"", note=document.getElementById("pv2TextNote")?.value.trim()||""; if(addDay<0||!text){ showToast("请填写内容"); return; }
+    const read=(id,key)=>{ const value=document.getElementById(id)?.value.trim(); return value||addDraft?.[key]?.trim()||""; };
+    const text=read("pv2TextValue","text"), location=read("pv2TextLocation","location"), note=read("pv2TextNote","note"); if(addDay<0||!text){ showToast("请填写名称"); return; }
     const selectedSubkind=document.getElementById("pv2TextSubkind")?.value;
     const labels={custom:"自定义景点",accommodation:"住宿",meal:"餐饮"}, kind=selectedSubkind||addKind, day=plan.days[addDay];
     const icon=kind==="accommodation"?"🏨":"✦";
     const customPayload={value:text,note};
     if(location) customPayload.map_query=location;
-    const manual=v2CoordinatePair(document.getElementById("pv2TextLat")?.value,document.getElementById("pv2TextLng")?.value);
+    const manual=v2CoordinatePair(read("pv2TextLat","lat"),read("pv2TextLng","lng"));
     if(manual){ customPayload.latitude=manual.lat; customPayload.longitude=manual.lng; }
     else if(location){ const coordinates=await v2GeocodeLocation(location,day); if(coordinates){ customPayload.latitude=coordinates.latitude; customPayload.longitude=coordinates.longitude; } }
     const item={custom:true,kind,id:`pv2-${kind}-${Date.now()}`,name:`${icon} ${text}`,city:"",tag:labels[kind],notes:note,custom_payload:customPayload};
@@ -2607,7 +2609,7 @@ function initializePlannerUI(){
     if(kind==="accommodation") day.accommodation=text;
     savePlan(); v2CloseAdd(); renderPlannerV2();
   }
-  function v2CloseAdd(){ addDay=-1; addKind=""; insertAt=-1; routeDraft=null; routeFocus=""; if(pickerMap){ pickerMap.remove(); pickerMap=null; pickerMarker=null; } sheet.hidden=true; sheet.innerHTML=""; }
+  function v2CloseAdd(){ addDay=-1; addKind=""; insertAt=-1; routeDraft=null; routeFocus=""; addDraft=null; if(pickerMap){ pickerMap.remove(); pickerMap=null; pickerMarker=null; } sheet.hidden=true; sheet.innerHTML=""; }
   function v2CommitAdd(){ if(addDay<0) return; let added=0; sheet.querySelectorAll("[data-v2-attraction]:checked").forEach(node=>{ const city=node.dataset.v2City, id=node.dataset.v2Attraction; if(addAttraction(addDay,city,id)) added++; }); savePlan(); v2CloseAdd(); renderPlannerV2(); showToast(added?`已加入 ${added} 个地点`:"所选地点已在行程中"); }
   function v2Places(day){ return (day.attractions||[]).map((item,index)=>({item,index,source:!item.custom&&sourceAttraction(item)})).filter(row=>!row.item.custom||v2Coords(row.item)); }
   function v2MapItem(day){ const items=day.attractions||[]; const item=mapFocusIndex>=0&&items[mapFocusIndex]?items[mapFocusIndex]:items.find(row=>v2Coords(row)); const source=item&&!item.custom&&sourceAttraction(item); const metadata=item?.metadata&&typeof item.metadata==="object"?item.metadata:{}; const payload=item?.custom_payload&&typeof item.custom_payload==="object"?item.custom_payload:{}; return {item,query:source?.mapQuery||payload.map_query||metadata.map_query||item?.name||day.cities?.map(key=>cityByEn[key]?.city).find(Boolean)||""}; }
