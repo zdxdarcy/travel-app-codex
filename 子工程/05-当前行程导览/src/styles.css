@@ -21,6 +21,7 @@
 html, body { max-width: 100%; overflow-x: hidden; overflow-x: clip; overscroll-behavior-x: none; }
 body { margin: 0; min-width: 320px; background: var(--paper); }
 button, a, textarea { font: inherit; }
+html { -webkit-text-size-adjust: 100%; }
 button, a { -webkit-tap-highlight-color: transparent; }
 a { color: inherit; }
 .app-shell { min-height: 100vh; min-width: 0; max-width: 100%; overflow-x: hidden; overflow-x: clip; padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom)); }
@@ -225,6 +226,7 @@ h3 { font-size: 20px; line-height: 1.25; margin: 0; }
 }
 
 @media (max-width: 760px) {
+  input:not([type=checkbox]):not([type=radio]), select, textarea { font-size: 16px; }
   /* Do not put pan-y on an ancestor of the detail deck: touch-action is
      intersected through ancestors, which otherwise disables the deck's
      native horizontal carousel on iOS. Page-level overflow clipping keeps

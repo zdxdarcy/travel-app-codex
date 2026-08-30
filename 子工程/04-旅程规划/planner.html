@@ -285,6 +285,11 @@
   .pv2-map-stage{z-index:6;touch-action:none}
   .pv2-overview{padding-bottom:calc(var(--nav-height) + 40px + env(safe-area-inset-bottom))}
   @media(max-width:680px){.pv2-map{height:184px;min-height:184px}.pv2-plan-stage{height:calc(100dvh - 58px);min-height:0}.pv2-plan-stage-1 .pv2-map{height:330px;min-height:0}.pv2-plan-stage-2 .pv2-map{height:440px;min-height:0}.pv2-overview{padding-bottom:calc(var(--nav-height) + 40px + env(safe-area-inset-bottom))}}
+  /* iOS Safari zooms focused controls below 16px. Keep every editable control at the
+     accessibility-safe minimum on phone-sized viewports so focus never changes layout scale. */
+  @media (max-width:760px){
+    input:not([type=checkbox]):not([type=radio]), select, textarea{font-size:16px !important;}
+  }
 
   /* Map controls: the reference layout keeps the map clean and the height handle at the sheet edge. */
   .pv2-map{isolation:isolate}
