@@ -2298,7 +2298,9 @@ async function loadTrip(tripId,{dayIndex=null}={}){
         id:day.id,dayIndex:index,date:day.day_date,notes:parsedNotes.text||String(day.notes||""),
         cities:Array.isArray(dayMeta.cities)?dayMeta.cities:[],
         accommodation:dayMeta.accommodation||"",transport:dayMeta.transport||"",meals:dayMeta.meals||{},
-        attractions:(itemsByDay[day.id]||[]).filter(item=>item.item_type==="attraction").map(coreItemToPlanItem),
+        // 自定义景点、住宿和餐饮在云端分别保存为 custom/lodging/meal；
+        // 编辑已有行程时都应恢复到当天安排，只有交通段属于独立 transports。
+        attractions:(itemsByDay[day.id]||[]).filter(item=>item.item_type!=="transport").map(coreItemToPlanItem),
         transports:[...(Array.isArray(dayMeta.segmentTransports)?dayMeta.segmentTransports:[]),...(itemsByDay[day.id]||[]).filter(item=>item.item_type==="transport").map(coreItemToPlanItem)]
       });
     });
