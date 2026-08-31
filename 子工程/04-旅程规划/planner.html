@@ -1807,12 +1807,14 @@ function savePlan(){
   }catch(e){}
 }
 
-function updatePlannerUrl({tripId="",newTrip=false}={}){
+function updatePlannerUrl({tripId="",newTrip=false,day=null,view=""}={}){
   try{
     const url=new URL(window.location.href);
-    url.searchParams.delete("editTripId"); url.searchParams.delete("tripId"); url.searchParams.delete("newTrip"); url.searchParams.delete("mode");
+    url.searchParams.delete("editTripId"); url.searchParams.delete("tripId"); url.searchParams.delete("newTrip"); url.searchParams.delete("mode"); url.searchParams.delete("day"); url.searchParams.delete("view");
     if(tripId) url.searchParams.set("tripId",String(tripId));
     else if(newTrip) url.searchParams.set("newTrip","1");
+    if(Number.isInteger(day) && day>=0) url.searchParams.set("day",String(day));
+    if(view) url.searchParams.set("view",view);
     window.history.replaceState(null,"",url.href);
   }catch(_){ }
 }
@@ -2494,7 +2496,7 @@ function initializePlannerUI(){
   window.__plannerShowCountry=()=>{ screen="country"; plannerView="overview"; addDay=-1; addKind=""; insertAt=-1; window.renderPlannerV2?.(); };
   window.__plannerShowLoadedPlan=()=>{
     if(!plan.enteredPlan||!plan.days?.length) return;
-    screen=REQUESTED_SETUP ? "setup" : "plan"; plannerView="overview"; addDay=-1; addKind=""; insertAt=-1;
+    screen=REQUESTED_SETUP ? "setup" : "plan"; plannerView=Number.isInteger(REQUESTED_DAY) ? "day" : "overview"; addDay=-1; addKind=""; insertAt=-1;
     window.renderPlannerV2?.();
   };
   const routeCache=new Map();
@@ -2557,8 +2559,8 @@ function initializePlannerUI(){
     if(start!==undefined) plan.departDate=start; if(end!==undefined) plan.returnDate=end; if(name!==undefined) plan.tripName=name.trim(); if(notes!==undefined) plan.notes=notes.trim(); savePlan(); screen="country"; renderPlannerV2();
   }
   function centerActiveDayTab(){ requestAnimationFrame(()=>{ const tab=root.querySelector(".pv2-daytab.is-active"), rail=root.querySelector(".pv2-days"); if(!tab||!rail) return; const target=tab.offsetLeft-(rail.clientWidth-tab.offsetWidth)/2; rail.scrollTo({left:Math.max(0,target),behavior:"smooth"}); }); }
-  function v2GoDay(index){ plan.activeDayIndex=Math.max(0,Math.min(plan.days.length-1,index)); mapFocusIndex=-1; plannerView="day"; savePlan(); renderPlannerV2(); centerActiveDayTab(); }
-  function v2ShowOverview(){ plannerView="overview"; renderPlannerV2(); }
+  function v2GoDay(index){ plan.activeDayIndex=Math.max(0,Math.min(plan.days.length-1,index)); mapFocusIndex=-1; plannerView="day"; updatePlannerUrl({tripId:plan.tripId||editTripId,day:plan.activeDayIndex,view:"day"}); savePlan(); renderPlannerV2(); centerActiveDayTab(); }
+  function v2ShowOverview(){ plannerView="overview"; updatePlannerUrl({tripId:plan.tripId||editTripId,view:"overview"}); renderPlannerV2(); }
   function v2Move(dayIndex,itemIndex,direction){ const items=plan.days[dayIndex].attractions; const target=itemIndex+direction; if(target<0||target>=items.length) return; [items[itemIndex],items[target]]=[items[target],items[itemIndex]]; savePlan(); renderPlannerV2(); }
   function v2Delete(dayIndex,itemIndex){
     const day=plan.days[dayIndex];
@@ -2594,8 +2596,7 @@ function initializePlannerUI(){
   function v2InitPicker(){ if(!window.L) return; const host=document.getElementById("pv2PickerMap"); if(!host) return; pickerMap=L.map(host,{zoomControl:true,attributionControl:false}).setView([51.1657,10.4515],5); L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19}).addTo(pickerMap); const setPoint=(latlng)=>{ document.getElementById("pv2TextLat").value=latlng.lat.toFixed(6); document.getElementById("pv2TextLng").value=latlng.lng.toFixed(6); if(pickerMarker) pickerMarker.setLatLng(latlng); else pickerMarker=L.marker(latlng).addTo(pickerMap); }; pickerMap.on("click",e=>setPoint(e.latlng)); host.addEventListener("pointerdown",e=>{ pickerTimer=setTimeout(()=>{ const rect=host.getBoundingClientRect(); const point=pickerMap.containerPointToLatLng([e.clientX-rect.left,e.clientY-rect.top]); setPoint(point); },600); }); ["pointerup","pointercancel","pointerleave"].forEach(type=>host.addEventListener(type,()=>clearTimeout(pickerTimer))); }
   async function v2LocateText(){ const input=document.getElementById("pv2TextLocation"); const query=input?.value.trim()||addDraft?.location?.trim()||""; if(!query){ showToast("请先输入地址或搜索词"); return; } if(addDraft) addDraft.location=query; const point=await v2GeocodeLocation(query,plan.days[addDay]); if(!point){ showToast("未找到该地点，请调整搜索词或粘贴坐标"); return; } const lat=point.latitude.toFixed(6),lng=point.longitude.toFixed(6); if(addDraft){ addDraft.lat=lat; addDraft.lng=lng; } const latNode=document.getElementById("pv2TextLat"),lngNode=document.getElementById("pv2TextLng"); if(latNode) latNode.value=lat; if(lngNode) lngNode.value=lng; if(pickerMap){ pickerMap.setView([point.latitude,point.longitude],15); if(pickerMarker) pickerMarker.setLatLng([point.latitude,point.longitude]); else pickerMarker=L.marker([point.latitude,point.longitude]).addTo(pickerMap); } }
   async function v2GeocodeLocation(query,day){
-    const cityNames=(day?.cities||[]).map(key=>cityByEn[key]?.city||key).filter(Boolean);
-    const search=[query,...cityNames].filter(Boolean).join(", ");
+    const search=query;
     const controller=new AbortController(), timer=setTimeout(()=>controller.abort(),7000);
     try{
       const response=await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=zh&q=${encodeURIComponent(search)}`,{signal:controller.signal,headers:{Accept:"application/json"}});
