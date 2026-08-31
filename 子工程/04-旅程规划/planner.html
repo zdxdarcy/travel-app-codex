@@ -494,7 +494,8 @@
   .pv2-setup-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
   .pv2-plan-stage .pv2-map{position:relative;top:auto;z-index:5;flex:0 0 auto}
   .pv2-plan-stage .pv2-trip-panel{display:flex;flex:1 1 auto;min-height:0;flex-direction:column;overflow:hidden;z-index:10}
-  .pv2-map-placeholder,.pv2-leaflet-map{pointer-events:none}
+  .pv2-map-placeholder{pointer-events:none}
+  .pv2-leaflet-map{pointer-events:auto;touch-action:pan-x pan-y}
   .pv2-plan-stage .pv2-day-body{flex:1 1 auto;min-height:0;max-height:none;overflow-y:auto;overscroll-behavior:contain}
   @media(max-width:680px){.pv2-plan-stage .pv2-trip-panel{position:relative;bottom:auto;display:flex;max-height:none;overflow:hidden}.pv2-plan-stage .pv2-day-body{max-height:none;overflow-y:auto;padding-bottom:26px}}
   body.planner-v2-day-lock{overflow:hidden;height:100dvh}
