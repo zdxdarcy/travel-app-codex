@@ -306,6 +306,8 @@
   .pv2-leaflet-number-wrap{background:transparent;border:0}
   .pv2-leaflet-number{display:grid!important;width:30px!important;height:30px!important;place-items:center;border:2px solid #fff;border-radius:50%;background:#177560;color:#fff;box-shadow:0 3px 10px rgba(0,0,0,.28);font:900 13px/1 system-ui,-apple-system,sans-serif}
   .pv2-leaflet-number.is-focused{background:#ef654d;transform:scale(1.16)}
+  /* Soften the baked-in raster basemap while keeping roads and labels legible. */
+  .pv2-leaflet-map .leaflet-tile-pane{filter:saturate(.55) brightness(1.1) contrast(.84)}
   .pv2-leaflet-number-wrap:focus .pv2-leaflet-number,.pv2-leaflet-number:hover{background:#ef654d}
   .pv2-leaflet-map .leaflet-top.leaflet-left{left:auto;right:0}
   .pv2-leaflet-map .leaflet-control-zoom{margin-top:14px;margin-right:14px;margin-left:0}
@@ -2749,6 +2751,9 @@ function initializePlannerUI(){
         response=await fetch(`${host}/route/v1/${profile}/${a.lng},${a.lat};${b.lng},${b.lat}?overview=full&geometries=geojson`,{signal:controller.signal}); data=await response.json(); const route=data.routes?.[0]; if(!response.ok||!route) throw new Error("OSRM route unavailable"); distance=route.distance; duration=route.duration; coordinates=(route.geometry?.coordinates||[]).map(point=>[point[1],point[0]]);
       }
       clearTimeout(timeout);
+      // Keep route geometry lightweight on mobile; dense provider geometries can
+      // otherwise make Leaflet spend several seconds parsing/redrawing a day.
+      if(coordinates.length>160){ const step=(coordinates.length-1)/159; coordinates=Array.from({length:160},(_,i)=>coordinates[Math.round(i*step)]); }
       const minutes=Math.max(1,Math.round(Number(duration)/60)), km=(Number(distance)/1000).toFixed(Number(distance)>=10000?0:1); const result={status:"ok",duration:`约 ${minutes} 分钟`,distance:`${km} km`,coordinates}; routeCache.set(key,result); return result;
     }catch(_){ const result={status:"error"}; routeCache.set(key,result); return result; }
   }
