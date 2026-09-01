@@ -337,7 +337,7 @@
   .planner-v2-day-lock:not(.planner-v2-sort) .pv2-stop-tools [data-v2-drag]{display:none!important}
   .pv2-bottom-spacer{height:56px}
   .planner-v2-day-lock #planArea{padding-bottom:calc(var(--nav-height) + 70px + env(safe-area-inset-bottom)) !important}
-  .planner-v2-day-lock .pv2-day-body{padding-top:18px!important;padding-bottom:8px!important}
+  .planner-v2-day-lock .pv2-day-body{padding-top:18px!important;padding-bottom:8px!important;flex:0 1 auto;max-height:calc(100dvh - 470px);overflow-y:auto}
   .planner-v2-day-lock .pv2-days{margin-top:0}
   .planner-v2-day-lock .pv2-trip-panel{overflow:visible!important}
   :root{
@@ -2596,7 +2596,7 @@ function initializePlannerUI(){
     const start=document.getElementById("pv2Start")?.value, end=document.getElementById("pv2End")?.value, name=document.getElementById("pv2Name")?.value, notes=document.getElementById("pv2Notes")?.value;
     if(start!==undefined) plan.departDate=start; if(end!==undefined) plan.returnDate=end; if(name!==undefined) plan.tripName=name.trim(); if(notes!==undefined) plan.notes=notes.trim(); savePlan(); screen="country"; renderPlannerV2();
   }
-  function centerActiveDayTab(){ requestAnimationFrame(()=>{ const tab=root.querySelector(".pv2-daytab.is-active"), rail=root.querySelector(".pv2-days"); if(!tab||!rail) return; const target=tab.offsetLeft-(rail.clientWidth-tab.offsetWidth)/2; rail.scrollTo({left:Math.max(0,target),behavior:"smooth"}); }); }
+  function centerActiveDayTab(){ requestAnimationFrame(()=>{ const tab=root.querySelector(".pv2-daytab.is-active"); if(!tab) return; tab.scrollIntoView({behavior:"smooth",block:"nearest",inline:"center"}); }); }
   function v2GoDay(index){ plan.activeDayIndex=Math.max(0,Math.min(plan.days.length-1,index)); mapFocusIndex=-1; plannerView="day"; updatePlannerUrl({tripId:plan.tripId||editTripId,day:plan.activeDayIndex,view:"day"}); savePlan(); renderPlannerV2(); centerActiveDayTab(); }
   function v2ShowOverview(){ plannerView="overview"; updatePlannerUrl({tripId:plan.tripId||editTripId,view:"overview"}); renderPlannerV2(); }
   function v2ToggleSort(){ sortMode=!sortMode; document.body.classList.toggle("planner-v2-sort",sortMode); renderPlannerV2(); }
@@ -2758,7 +2758,7 @@ function initializePlannerUI(){
     }catch(_){ const result={status:"error"}; routeCache.set(key,result); return result; }
   }
   function waitForRoute(key,done,tries=0){ const state=key&&routeCache.get(key); if(state?.status==="ok"||state?.status==="error"){ setTimeout(done,0); return; } if(tries<40) setTimeout(()=>waitForRoute(key,done,tries+1),250); }
-  function scheduleRouteRefresh(key){ if(!key||routeRefreshPending.has(key)) return; routeRefreshPending.add(key); waitForRoute(key,()=>{ routeRefreshPending.delete(key); if(plannerView==="day") renderPlannerV2(); }); }
+  function scheduleRouteRefresh(key){ if(!key||routeRefreshPending.has(key)) return; routeRefreshPending.add(key); waitForRoute(key,()=>{ routeRefreshPending.delete(key); if(plannerView==="day"&&leafletMap){ requestAnimationFrame(()=>{ if(leafletMap) leafletMap.invalidateSize(); }); } }); }
   async function v2LoadRouteEstimate(mode,draft){ if(!draft||mode==="transit") return; await v2EnsureRoute(draft.from,draft.to,mode); if(routeDraft!==draft) return; const node=sheet.querySelector(`[data-route-estimate="${mode}"]`); if(node) node.textContent=v2RouteEstimate(draft.from,draft.to,mode); }
   function renderRouteSheet(draft=routeDraft){ const from=draft?.from, to=draft?.to; if(!draft||!from||!to){ sheet.hidden=true; return; } const estimates={drive:v2RouteEstimate(from,to,"drive"),walk:v2RouteEstimate(from,to,"walk"),transit:v2RouteEstimate(from,to,"transit")}; sheet.innerHTML=`<section class="pv2-sheet-card pv2-route-sheet" role="dialog" aria-modal="true" aria-label="编辑交通"><header class="pv2-sheet-top"><div><p class="pv2-kicker">${esc(pv2Date(plannedDate(addDay)))}</p><h3>前往下一站</h3></div><button type="button" onclick="v2CloseAdd()">×</button></header><div class="pv2-route-points"><b>${esc(from.name||"当前地点")}</b><span>→</span><b>${esc(to.name||"下一地点")}</b></div><div class="pv2-route-modes">${["drive","walk","transit"].map(mode=>`<button class="${draft.mode===mode?"is-active":""}" onclick="v2RouteChoice('${mode}')"><b>${mode==="drive"?"🚗":mode==="walk"?"🚶":"🚌"} ${v2RouteLabel(mode)}</b><span data-route-estimate="${mode}">${esc(estimates[mode])}</span></button>`).join("")}</div><p class="pv2-route-note">路线请求失败时会保留交通方式编辑，不会阻塞当前行程页面。</p><button class="pv2-sheet-submit" type="button" onclick="v2CommitRoute()">保存 ${esc(v2RouteLabel(draft.mode))}</button></section>`; ["drive","walk"].forEach(mode=>setTimeout(()=>v2LoadRouteEstimate(mode,draft),0)); }
   function v2OpenSegmentTransport(dayIndex,index,nextIndex){
