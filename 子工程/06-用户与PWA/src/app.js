@@ -362,18 +362,26 @@ function recommendationBreadcrumb() {
 }
 
 function recommendationCard(item, kind) {
+  const vipOnly = Boolean(item.is_vip_only);
+  const vipLocked = vipOnly && !["VIP", "管理员"].includes(client.userTier);
+  const lockClass = vipLocked ? " is-vip-locked" : "";
+  const vipMark = vipOnly ? `<span class="vip-badge" aria-label="VIP 内容">VIP</span>` : "";
   if (kind === "attraction") {
     const mode = selectionMode(item.id);
     const modeLabel = { inside: "入内参观", outside: "外部参观", none: "未安排" }[mode];
-    return `<article class="recommendation-card attraction-recommendation-card"><button class="recommendation-open" type="button" data-rec-open="attraction" data-id="${escapeHtml(item.id)}"><span class="recommendation-card-title">${escapeHtml(item.name_zh)}</span><span class="recommendation-card-en">${escapeHtml(item.name_en)}</span><span class="recommendation-card-meta">${escapeHtml(item.tag || "景点")}${item.duration_label ? ` · ${escapeHtml(item.duration_label)}` : ""}${item.rating ? ` · ${escapeHtml(item.rating)} 分` : ""}</span></button><button class="visit-mode mode-${mode}" type="button" data-rec-visit="${escapeHtml(item.id)}" aria-pressed="${mode !== "none"}">${modeLabel}</button></article>`;
+    return `<article class="recommendation-card attraction-recommendation-card${lockClass}"><button class="recommendation-open" type="button" data-rec-open="attraction" data-id="${escapeHtml(item.id)}" ${vipLocked ? "disabled" : ""}><span class="recommendation-card-title">${escapeHtml(item.name_zh)}${vipMark}</span><span class="recommendation-card-en">${escapeHtml(item.name_en)}</span><span class="recommendation-card-meta">${escapeHtml(item.tag || "景点")}${item.duration_label ? ` · ${escapeHtml(item.duration_label)}` : ""}${item.rating ? ` · ${escapeHtml(item.rating)} 分` : ""}</span></button><button class="visit-mode mode-${mode}" type="button" data-rec-visit="${escapeHtml(item.id)}" aria-pressed="${mode !== "none"}" ${vipLocked ? "disabled" : ""}>${modeLabel}</button></article>`;
   }
   if (kind === "route") {
-    return `<button class="recommendation-card destination-card route-card" type="button" data-rec-open="route" data-id="${escapeHtml(item.id)}"><span class="route-card-kicker">${escapeHtml(item.area_name_zh || "推荐路线")}</span><span class="recommendation-card-title">${escapeHtml(item.name_zh)}</span><span class="recommendation-card-en">${escapeHtml(item.name_en || "")}</span><span class="recommendation-card-meta">${escapeHtml(item.duration_days)} 天 · 查看路线安排</span></button>`;
+    return `<button class="recommendation-card destination-card route-card${lockClass}" type="button" data-rec-open="route" data-id="${escapeHtml(item.id)}" ${vipLocked ? "disabled" : ""}><span class="route-card-kicker">${escapeHtml(item.area_name_zh || "推荐路线")}</span><span class="recommendation-card-title">${escapeHtml(item.name_zh)}${vipMark}</span><span class="recommendation-card-en">${escapeHtml(item.name_en || "")}</span><span class="recommendation-card-meta">${escapeHtml(item.duration_days)} 天 · 查看路线安排</span></button>`;
   }
   const title = `${item.name_zh}`;
   const subtitle = item.name_en || item.slug || "";
   const meta = kind === "country" ? "进入城市目录" : kind === "city" ? "进入景点目录" : "查看国家";
-  return `<button class="recommendation-card destination-card" type="button" data-rec-open="${kind}" data-id="${escapeHtml(item.id)}"><span class="recommendation-card-title">${escapeHtml(title)}</span><span class="recommendation-card-en">${escapeHtml(subtitle)}</span><span class="recommendation-card-meta">${meta}</span></button>`;
+  return `<button class="recommendation-card destination-card${lockClass}" type="button" data-rec-open="${kind}" data-id="${escapeHtml(item.id)}" ${vipLocked ? "disabled" : ""}><span class="recommendation-card-title">${escapeHtml(title)}${vipMark}</span><span class="recommendation-card-en">${escapeHtml(subtitle)}</span><span class="recommendation-card-meta">${meta}</span></button>`;
+}
+
+function applyCatalogVisibility(items, parent = null) {
+  return (items || []).map((item) => ({ ...item, is_vip_only: Boolean(item.is_vip_only || parent?.is_vip_only) }));
 }
 
 function detailNavigation() {
@@ -626,7 +634,8 @@ function renderRecommendations() {
   const routeEntry = level === "cities" && state.recommendations.country
     ? `<button class="directory-section-entry" type="button" data-rec-open="routes" data-id="${escapeHtml(state.recommendations.country.id)}"><span class="directory-section-icon" aria-hidden="true">↝</span><span><strong>推荐路线</strong><small>按区域和天数查看 AI 生成的路线安排</small></span><span aria-hidden="true">→</span></button>`
     : "";
-  content.innerHTML = `${routeEntry}<div class="recommendation-grid">${items.map((item) => recommendationCard(item, kind)).join("")}</div>`;
+  const sortedItems = [...items].sort((a, b) => Number(Boolean(a.is_vip_only)) - Number(Boolean(b.is_vip_only)));
+  content.innerHTML = `${routeEntry}<div class="recommendation-grid">${sortedItems.map((item) => recommendationCard(item, kind)).join("")}</div>`;
 }
 
 async function resetDiscoverHome() {
@@ -673,6 +682,7 @@ function loadRecommendationDetailExtras() {
 
 async function hydrateRecommendations({ refreshLatest = false } = {}) {
   await hydrateLatestRecommendations(refreshLatest);
+  await client.getUserTier?.();
   if (!client.isConfigured()) {
     recommendationStatus("游客模式：目录需要部署配置后读取。");
     return;
@@ -753,11 +763,11 @@ async function openRecommendation(kind, id) {
     if (kind === "continent") {
       rec.continent = rec.items.find((item) => item.id === id) || null;
       rec.level = "countries";
-      rec.items = await client.listCountries(id);
+      rec.items = applyCatalogVisibility(await client.listCountries(id));
     } else if (kind === "country") {
       rec.country = rec.items.find((item) => item.id === id) || null;
       rec.level = "cities";
-      rec.items = await client.listCities(id);
+      rec.items = applyCatalogVisibility(await client.listCities(id), rec.country);
       rec.routes = [];
     } else if (kind === "routes") {
       rec.level = "routes";
@@ -855,9 +865,9 @@ async function backRecommendation() {
       rec.routeDetailReturn = false;
     }
     else if (rec.level === "route-detail") { rec.level = "routes"; rec.items = rec.routes; rec.route = null; rec.routeDays = []; }
-    else if (rec.level === "routes") { rec.level = "cities"; rec.items = await client.listCities(rec.country.id); }
-    else if (rec.level === "attractions") { rec.level = "cities"; rec.items = await client.listCities(rec.country.id); }
-    else if (rec.level === "cities") { rec.level = "countries"; rec.items = await client.listCountries(rec.continent.id); }
+    else if (rec.level === "routes") { rec.level = "cities"; rec.items = applyCatalogVisibility(await client.listCities(rec.country.id), rec.country); }
+    else if (rec.level === "attractions") { rec.level = "cities"; rec.items = applyCatalogVisibility(await client.listCities(rec.country.id), rec.country); }
+    else if (rec.level === "cities") { rec.level = "countries"; rec.items = applyCatalogVisibility(await client.listCountries(rec.continent.id)); }
     else if (rec.level === "countries") { rec.level = "continents"; rec.items = await client.listContinents(); }
   } catch (error) {
     recommendationStatus(`目录暂不可用：${client.authError(error)}`);

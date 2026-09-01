@@ -16,6 +16,8 @@ const config = {
 
 const listeners = new Set();
 let session = readJson(AUTH_STORAGE_KEY, null);
+let profileTier = null;
+let profileTierUserId = null;
 
 function readJson(key, fallback) {
   try { return JSON.parse(localStorage.getItem(key) || "null") ?? fallback; } catch { return fallback; }
@@ -166,7 +168,7 @@ async function listContinents() {
 async function listCountries(continentId) {
   const filters = `&region_id=eq.${encodeURIComponent(continentId)}&is_active=eq.true&order=name_zh`;
   try {
-    return await publicTable(`countries?select=id,region_id,name_zh,name_en,slug,iso_code,directory_level${filters}`);
+    return await publicTable(`countries?select=id,region_id,name_zh,name_en,slug,iso_code,directory_level,is_vip_only${filters}`);
   } catch (error) {
     // Keep older deployments readable until the additive migration is applied.
     if (!/directory_level|column.*does not exist|PGRST204|schema/i.test(String(error?.message || error))) throw error;
@@ -182,9 +184,21 @@ async function listRegions(countryId) {
 }
 
 async function listCities(countryId, regionId = null) {
-  let query = `cities?select=id,country_id,region_id,name_zh,name_en,slug,latitude,longitude&country_id=eq.${encodeURIComponent(countryId)}&is_active=eq.true&order=name_zh`;
+  let query = `cities?select=id,country_id,region_id,name_zh,name_en,slug,latitude,longitude,is_vip_only&country_id=eq.${encodeURIComponent(countryId)}&is_active=eq.true&order=name_zh`;
   if (regionId) query += `&region_id=eq.${encodeURIComponent(regionId)}`;
   return publicTable(query);
+}
+
+async function getUserTier() {
+  const userId = session?.user?.id || null;
+  if (!userId) { profileTier = null; profileTierUserId = null; return "普通用户"; }
+  if (profileTierUserId === userId && profileTier) return profileTier;
+  try {
+    const rows = await table(`profiles?select=user_tier&id=eq.${encodeURIComponent(userId)}&limit=1`);
+    profileTier = rows?.[0]?.user_tier || "普通用户";
+  } catch { profileTier = "普通用户"; }
+  profileTierUserId = userId;
+  return profileTier;
 }
 
 async function listAttractions(cityId) {
@@ -192,7 +206,7 @@ async function listAttractions(cityId) {
 }
 
 async function getAttraction(attractionId) {
-  const rows = await publicTable(`attractions?select=id,city_id,slug,name_zh,name_en,tag,summary_zh,description_zh,duration_label,latitude,longitude,map_query,opening_hours,ticket_info,visit_notes,rating,review_count,rating_source&id=eq.${encodeURIComponent(attractionId)}&is_active=eq.true&limit=1`);
+  const rows = await publicTable(`attractions?select=id,city_id,slug,name_zh,name_en,tag,summary_zh,description_zh,duration_label,latitude,longitude,map_query,opening_hours,ticket_info,visit_notes,rating,review_count,rating_source&is_active=eq.true&id=eq.${encodeURIComponent(attractionId)}&limit=1`);
   return Array.isArray(rows) ? rows[0] || null : null;
 }
 
@@ -214,27 +228,6 @@ async function listLatestPublishedAttractions(limit = 12) {
     const message = String(error?.message || error);
     if (!/created_at|column.*does not exist|PGRST204|schema/i.test(message)) throw error;
     return queryLatestPublishedAttractions(limit, "updated_at");
-  }
-}
-
-async function queryLatestPublishedCities(limit, sortField) {
-  const safeLimit = Math.max(1, Math.min(48, Number(limit) || 2));
-  const query = `cities?select=id,country_id,region_id,name_zh,name_en,slug,latitude,longitude,${sortField},countries!inner(id,region_id,name_zh,name_en,slug,iso_code,is_active)&is_active=eq.true&countries.is_active=eq.true&order=${sortField}.desc,id.desc&limit=${safeLimit}`;
-  const rows = await publicTable(query);
-  return (Array.isArray(rows) ? rows : []).map((row) => {
-    const country = row.countries && !Array.isArray(row.countries) ? row.countries : row.countries?.[0];
-    const { countries, ...city } = row;
-    return { city, country: country || null };
-  }).filter((row) => row.city?.id && row.country?.id && row.city.is_active !== false && row.country.is_active !== false);
-}
-
-async function listLatestPublishedCities(limit = 2) {
-  try {
-    return await queryLatestPublishedCities(limit, "created_at");
-  } catch (error) {
-    const message = String(error?.message || error);
-    if (!/created_at|column.*does not exist|PGRST204|schema/i.test(message)) throw error;
-    return queryLatestPublishedCities(limit, "updated_at");
   }
 }
 
@@ -319,62 +312,28 @@ function dateAfter(base, offset) {
 }
 
 function localDateString(date = new Date()) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return date.toISOString().slice(0, 10);
 }
 
 async function saveRecommendedRouteAsTrip(route, routeDays) {
   if (!session?.user?.id) throw new Error("AUTH_REQUIRED");
   const days = Array.isArray(routeDays) ? routeDays : [];
-  const routeDayCount = Math.max(1, days.length || Number(route?.duration_days) || 1);
   const startDate = localDateString();
-  const endDate = dateAfter(startDate, routeDayCount - 1);
-  const tripRows = await table("trips", {
-    method: "POST",
-    body: JSON.stringify({
-      user_id: session.user.id,
-      name: route?.name_zh || "推荐路线",
-      start_date: startDate,
-      end_date: endDate,
-      status: "planned",
-      notes: JSON.stringify({ text: "由推荐路线加入", planner: { source: "recommended-route", route_id: route?.id || null, route_slug: route?.slug || "" } })
-    })
-  });
+  const endDate = dateAfter(startDate, Math.max(1, days.length || Number(route?.duration_days) || 1) - 1);
+  const tripRows = await table("trips", { method: "POST", body: JSON.stringify({ user_id: session.user.id, name: route?.name_zh || "推荐路线", start_date: startDate, end_date: endDate, status: "planned", notes: JSON.stringify({ text: "由推荐路线加入", planner: { source: "recommended-route", route_id: route?.id || null } }) }) });
   const trip = normalizeTrip(Array.isArray(tripRows) ? tripRows[0] : tripRows);
   if (!trip?.id) throw new Error("创建行程失败：未返回行程 ID");
-  for (let dayIndex = 0; dayIndex < days.length; dayIndex += 1) {
-    const day = days[dayIndex];
-    const dayRows = await table("trip_days", {
-      method: "POST",
-      body: JSON.stringify({
-        trip_id: trip.id,
-        day_number: dayIndex + 1,
-        day_date: dateAfter(startDate, dayIndex),
-        notes: JSON.stringify({ text: day.notes || "", planner: { source: "recommended-route", overnightCity: day.overnight_city_name_snapshot || "" } })
-      })
-    });
+  for (let index = 0; index < days.length; index += 1) {
+    const day = days[index];
+    const dayRows = await table("trip_days", { method: "POST", body: JSON.stringify({ trip_id: trip.id, day_number: index + 1, day_date: dateAfter(startDate, index), notes: JSON.stringify({ text: day.notes || "", planner: { source: "recommended-route", overnightCity: day.overnight_city_name_snapshot || "" } }) }) });
     const dayId = Array.isArray(dayRows) ? dayRows[0]?.id : dayRows?.id;
-    if (!dayId) throw new Error(`创建第 ${dayIndex + 1} 天失败：未返回日期 ID`);
-    const items = (day.items || []).map((item, index) => ({
-      trip_day_id: dayId,
-      item_type: "attraction",
-      attraction_id: item.attraction_id || null,
-      title_snapshot: item.title_snapshot || "未命名景点",
-      city_name_snapshot: item.city_name_snapshot || null,
-      planned_order: index + 1,
-      visit_mode: "inside",
-      duration_minutes: item.duration_minutes || null,
-      notes: item.notes || null,
-      metadata: { source: "recommended-route", route_id: route?.id || null, route_day_id: day.id || null, transit_notes: item.transit_notes || "" }
-    }));
+    if (!dayId) throw new Error(`创建第 ${index + 1} 天失败：未返回日期 ID`);
+    const items = (day.items || []).map((item, itemIndex) => ({ trip_day_id: dayId, item_type: "attraction", attraction_id: item.attraction_id || null, title_snapshot: item.title_snapshot || "未命名景点", city_name_snapshot: item.city_name_snapshot || null, planned_order: itemIndex + 1, visit_mode: "inside", duration_minutes: item.duration_minutes || null, notes: item.notes || null, metadata: { source: "recommended-route", route_id: route?.id || null, route_day_id: day.id || null, transit_notes: item.transit_notes || "" } }));
     if (items.length) await table("trip_items", { method: "POST", body: JSON.stringify(items) });
   }
-  const selections = (days.flatMap((day) => day.items || []))
-    .filter((item) => item.attraction_id)
-    .map((item) => ({ countryId: route.country_id, attractionId: item.attraction_id, visitMode: "inside", note: `来自推荐路线：${route?.name_zh || "推荐路线"}` }));
-  for (const selection of selections) await saveSelection(selection);
+  for (const item of days.flatMap((day) => day.items || [])) {
+    if (item.attraction_id && route?.country_id) await saveSelection({ countryId: route.country_id, attractionId: item.attraction_id, visitMode: "inside", note: `来自推荐路线：${route?.name_zh || "推荐路线"}` });
+  }
   await setActiveTrip(trip.id);
   return trip;
 }
@@ -417,6 +376,8 @@ export const supabaseClient = {
   isConfigured,
   get session() { return session; },
   get user() { return session?.user || null; },
+  get userTier() { return profileTier || "普通用户"; },
+  getUserTier,
   onAuthStateChange(listener) { listeners.add(listener); return () => listeners.delete(listener); },
   initialize: async () => { if (isConfigured()) await refreshIfNeeded(); return session; },
   signIn,
@@ -438,7 +399,6 @@ export const supabaseClient = {
   listAttractions,
   getAttraction,
   listLatestPublishedAttractions,
-  listLatestPublishedCities,
   listAttractionMedia,
   listAttractionReviews,
   listRecommendedRoutes,
