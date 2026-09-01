@@ -231,6 +231,27 @@ async function listLatestPublishedAttractions(limit = 12) {
   }
 }
 
+async function queryLatestPublishedCities(limit, sortField) {
+  const safeLimit = Math.max(1, Math.min(48, Number(limit) || 2));
+  const query = `cities?select=id,country_id,region_id,name_zh,name_en,slug,latitude,longitude,${sortField},countries!inner(id,region_id,name_zh,name_en,slug,iso_code,is_active)&is_active=eq.true&countries.is_active=eq.true&order=${sortField}.desc,id.desc&limit=${safeLimit}`;
+  const rows = await publicTable(query);
+  return (Array.isArray(rows) ? rows : []).map((row) => {
+    const country = row.countries && !Array.isArray(row.countries) ? row.countries : row.countries?.[0];
+    const { countries, ...city } = row;
+    return { city, country: country || null };
+  }).filter((row) => row.city?.id && row.country?.id && row.city.is_active !== false && row.country.is_active !== false);
+}
+
+async function listLatestPublishedCities(limit = 2) {
+  try {
+    return await queryLatestPublishedCities(limit, "created_at");
+  } catch (error) {
+    const message = String(error?.message || error);
+    if (!/created_at|column.*does not exist|PGRST204|schema/i.test(message)) throw error;
+    return queryLatestPublishedCities(limit, "updated_at");
+  }
+}
+
 async function listAttractionMedia(attractionId) {
   return publicTable(`attraction_media?select=id,attraction_id,media_type,url,alt_text,sort_order,source_name&attraction_id=eq.${encodeURIComponent(attractionId)}&is_active=eq.true&order=sort_order`);
 }
@@ -399,6 +420,7 @@ export const supabaseClient = {
   listAttractions,
   getAttraction,
   listLatestPublishedAttractions,
+  listLatestPublishedCities,
   listAttractionMedia,
   listAttractionReviews,
   listRecommendedRoutes,
