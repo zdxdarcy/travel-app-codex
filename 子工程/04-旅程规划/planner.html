@@ -2709,7 +2709,8 @@ function initializePlannerUI(){
         data=await response.json(); const feature=data.features?.[0]; if(!response.ok||!feature) throw new Error("ORS route unavailable"); distance=feature.properties?.summary?.distance; duration=feature.properties?.summary?.duration; coordinates=(feature.geometry?.coordinates||[]).map(point=>[point[1],point[0]]);
       }else{
         const host=mode==="walk"?"https://routing.openstreetmap.de/routed-foot":"https://router.project-osrm.org";
-        response=await fetch(`${host}/route/v1/driving/${a.lng},${a.lat};${b.lng},${b.lat}?overview=full&geometries=geojson`,{signal:controller.signal}); data=await response.json(); const route=data.routes?.[0]; if(!response.ok||!route) throw new Error("OSRM route unavailable"); distance=route.distance; duration=route.duration; coordinates=(route.geometry?.coordinates||[]).map(point=>[point[1],point[0]]);
+        const profile=mode==="walk"?"foot":"driving";
+        response=await fetch(`${host}/route/v1/${profile}/${a.lng},${a.lat};${b.lng},${b.lat}?overview=full&geometries=geojson`,{signal:controller.signal}); data=await response.json(); const route=data.routes?.[0]; if(!response.ok||!route) throw new Error("OSRM route unavailable"); distance=route.distance; duration=route.duration; coordinates=(route.geometry?.coordinates||[]).map(point=>[point[1],point[0]]);
       }
       clearTimeout(timeout);
       const minutes=Math.max(1,Math.round(Number(duration)/60)), km=(Number(distance)/1000).toFixed(Number(distance)>=10000?0:1); const result={status:"ok",duration:`约 ${minutes} 分钟`,distance:`${km} km`,coordinates}; routeCache.set(key,result); return result;
