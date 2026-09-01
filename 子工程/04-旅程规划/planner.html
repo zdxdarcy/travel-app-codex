@@ -298,7 +298,9 @@
   /* Same visual language as Guide v2: a sheet-edge drag handle, not a button. */
   .pv2-map-stage{top:-20px;left:50%;width:88px;height:40px;padding:0;border:0;background:transparent;box-shadow:none;cursor:ns-resize;touch-action:none;z-index:20}
   .pv2-map-stage::before{content:"";position:absolute;top:13px;left:50%;width:76px;height:10px;transform:translateX(-50%);border-radius:999px;background:#9ca9a5;box-shadow:0 0 0 6px rgba(255,255,255,.96)}
-  .pv2-map-stage:active::before{background:#7d8b87}
+  .pv2-map-stage{z-index:100!important;height:56px;top:-28px;transition:transform .18s ease;transform:translateX(-50%) translateY(var(--drag-offset,0px))}
+  .pv2-map-stage::before{top:20px;width:76px;height:10px;background:#9ca9a5;box-shadow:0 0 0 6px rgba(255,255,255,.96)}
+  .pv2-map-stage:active::before{background:#6f817a}
   .pv2-map-stage em{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
   .pv2-leaflet-map{position:absolute;inset:0;background:#e5eee8;z-index:1}
   .pv2-leaflet-number-wrap{background:transparent;border:0}
@@ -334,6 +336,8 @@
   .pv2-bottom-spacer{height:56px}
   .planner-v2-day-lock #planArea{padding-bottom:calc(var(--nav-height) + 70px + env(safe-area-inset-bottom)) !important}
   .planner-v2-day-lock .pv2-day-body{padding-top:8px!important}
+  .planner-v2-day-lock .pv2-days{margin-top:0}
+  .planner-v2-day-lock .pv2-trip-panel{overflow:visible!important}
   :root{
     --paper:#f7f8fa; --surface:#fff; --ink:#17232b; --muted:#6b747b;
     --line:#dfe5e7; --teal:#176b5b; --teal-dark:#0e5146; --teal-soft:#e7f1ed;
@@ -2671,8 +2675,8 @@ function initializePlannerUI(){
     let startY=null, startStage=mapStage, moved=false;
     const pointY=event=>event.touches?.[0]?.clientY ?? event.changedTouches?.[0]?.clientY ?? event.clientY;
     const begin=event=>{ startY=pointY(event); startStage=mapStage; moved=false; event.preventDefault?.(); };
-    const move=event=>{ if(startY==null) return; const delta=pointY(event)-startY; moved=moved||Math.abs(delta)>=12; event.preventDefault?.(); };
-    const end=event=>{ if(startY==null) return; const delta=pointY(event)-startY; startY=null; if(!moved) return; const next=Math.max(0,Math.min(2,startStage+(delta<=-32?-1:delta>=32?1:0))); if(next!==mapStage){ mapStage=next; renderPlannerV2(); } };
+    const move=event=>{ if(startY==null) return; const delta=pointY(event)-startY; moved=moved||Math.abs(delta)>=12; handle.style.setProperty("--drag-offset",`${Math.max(-28,Math.min(28,delta*.35))}px`); handle.classList.add("is-dragging"); event.preventDefault?.(); };
+    const end=event=>{ if(startY==null) return; const delta=pointY(event)-startY; startY=null; handle.classList.remove("is-dragging"); handle.style.removeProperty("--drag-offset"); if(!moved) return; const next=Math.max(0,Math.min(2,startStage+(delta<=-32?-1:delta>=32?1:0))); if(next!==mapStage){ mapStage=next; renderPlannerV2(); } };
     // iPhone may retarget a drag from the short handle to the sheet while the
     // finger moves. Capture the full gesture at document level once it starts.
     handle.addEventListener("pointerdown",begin,{capture:true});
@@ -2781,7 +2785,7 @@ function initializePlannerUI(){
       card.addEventListener("drop",event=>{ event.preventDefault(); v2Reorder(day,from,index); });
       card.addEventListener("dragend",()=>root.querySelectorAll("[data-v2-stop]").forEach(el=>el.classList.remove("is-dragging","is-drop-target")));
       handle.addEventListener("pointerdown",event=>{ pointerStart={x:event.clientX,y:event.clientY,day,index}; handle.setPointerCapture?.(event.pointerId); });
-      handle.addEventListener("pointermove",event=>{ if(!pointerStart) return; const target=document.elementFromPoint(event.clientX,event.clientY)?.closest("[data-v2-stop]"); if(target){ root.querySelectorAll("[data-v2-stop]").forEach(el=>el.classList.remove("is-drop-target")); target.classList.add("is-drop-target"); over=Number(target.dataset.v2Index); } const now=Date.now(); if(now-lastAutoScroll>90){ const scroller=root.querySelector(".pv2-day-body"); if(scroller){ const rect=scroller.getBoundingClientRect(); if(event.clientY<rect.top+70) scroller.scrollBy({top:-4,behavior:"smooth"}); else if(event.clientY>rect.bottom-70) scroller.scrollBy({top:4,behavior:"smooth"}); } lastAutoScroll=now; } });
+      handle.addEventListener("pointermove",event=>{ if(!pointerStart) return; const target=document.elementFromPoint(event.clientX,event.clientY)?.closest("[data-v2-stop]"); if(target){ root.querySelectorAll("[data-v2-stop]").forEach(el=>el.classList.remove("is-drop-target")); target.classList.add("is-drop-target"); over=Number(target.dataset.v2Index); } const now=Date.now(); if(now-lastAutoScroll>90){ const scroller=root.querySelector(".pv2-day-body"); if(scroller){ const rect=scroller.getBoundingClientRect(); if(event.clientY<rect.top+80) scroller.scrollBy({top:-10,behavior:"smooth"}); else if(event.clientY>rect.bottom-80) scroller.scrollBy({top:10,behavior:"smooth"}); } lastAutoScroll=now; } });
       handle.addEventListener("pointerup",()=>{ if(pointerStart&&over>=0) v2Reorder(pointerStart.day,pointerStart.index,over); pointerStart=null; from=-1; over=-1; });
     });
   }
@@ -2813,7 +2817,7 @@ function initializePlannerUI(){
     if(!points.length) return;
     leafletHost=host;
     leafletMap=L.map(host,{zoomControl:true,attributionControl:true,scrollWheelZoom:true,dragging:true,tap:true,zoomSnap:.25,zoomDelta:.5});
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png",{subdomains:"abcd",maxZoom:20,attribution:"© OpenStreetMap 贡献者 · © CARTO"}).addTo(leafletMap);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{subdomains:"abc",maxZoom:19,attribution:"© OpenStreetMap 贡献者"}).addTo(leafletMap);
     const bounds=L.latLngBounds(points.map(value=>[value.point.lat,value.point.lng]));
     leafletMap.fitBounds(bounds,{padding:[34,34],maxZoom:15});
     if(mapFocusIndex>=0){
