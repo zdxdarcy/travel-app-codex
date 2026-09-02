@@ -546,6 +546,25 @@
   .pv2-stops:after{content:"";display:block;height:36px}
   .pv2-stop.sorting .pv2-stop-thumb,.pv2-stop.sorting .pv2-stop-type,.pv2-stop.sorting .pv2-stop-note,.pv2-stop.sorting .pv2-map-pin,.pv2-stop.sorting .pv2-stop-tools>button[title="删除"]{display:none}
   .pv2-stop.sorting{grid-template-columns:36px minmax(0,1fr) auto}.pv2-stop.sorting .pv2-stop-title{font-size:16px}
+  /* Rebuild the daily layout from the 98fa baseline: the map stays fixed,
+     while only the attractions pane owns vertical touch scrolling. */
+  body.planner-v2-day-lock{height:100dvh!important;overflow:hidden!important}
+  body.planner-v2-day-lock .pv2-plan-stage:not(:has(.pv2-overview)){
+    height:calc(100dvh - 58px)!important;min-height:0!important;display:flex!important;
+    flex-direction:column!important;overflow:hidden!important
+  }
+  body.planner-v2-day-lock .pv2-plan-stage:not(:has(.pv2-overview)) .pv2-trip-panel{
+    display:flex!important;flex:1 1 auto!important;min-height:0!important;height:auto!important;
+    max-height:none!important;flex-direction:column!important;overflow:hidden!important
+  }
+  body.planner-v2-day-lock .pv2-plan-stage:not(:has(.pv2-overview)) .pv2-days{
+    flex:0 0 56px!important;min-height:56px!important;overflow-x:auto!important;overflow-y:hidden!important
+  }
+  body.planner-v2-day-lock .pv2-plan-stage:not(:has(.pv2-overview)) .pv2-day-body{
+    flex:1 1 0!important;min-height:0!important;height:0!important;max-height:none!important;
+    overflow-y:auto!important;overflow-x:hidden!important;-webkit-overflow-scrolling:touch!important;
+    overscroll-behavior-y:contain!important;touch-action:pan-y!important;pointer-events:auto!important
+  }
 </style>
 </head>
 <body class="planner-ui-v2">

@@ -63,6 +63,8 @@ h3 { margin-bottom: 7px; font-size: 18px; }
 .latest-release-card strong { font-size: 14px; line-height: 1.35; }
 .latest-release-card .latest-release-city { margin-top: 7px; color: #f9d5b7; font-size: 12px; font-weight: 800; line-height: 1.4; }
 .latest-release-card .latest-release-meta { margin-top: 4px; color: #c4ded7; font-size: 11px; line-height: 1.4; }
+.latest-release-card.is-vip-locked { opacity: .48; filter: grayscale(.85); cursor: not-allowed; }
+.latest-release-card.is-vip-locked:hover { border-color: rgba(255,255,255,.2); background: rgba(255,255,255,.1); }
 .latest-release-status { min-height: 16px; margin: 0; color: #c4ded7; font-size: 11px; line-height: 1.4; }
 .latest-release-empty { grid-column: 1 / -1; color: #c4ded7; font-size: 12px; line-height: 1.5; }
 .latest-release-skeleton { display: block; min-height: 78px; border-radius: 4px; background: linear-gradient(100deg, rgba(255,255,255,.08) 30%, rgba(255,255,255,.2) 50%, rgba(255,255,255,.08) 70%); background-size: 200% 100%; animation: catalog-shimmer 1.2s ease-in-out infinite; }
@@ -88,6 +90,9 @@ h3 { margin-bottom: 7px; font-size: 18px; }
 .recommendation-card-title { font-size: 16px; font-weight: 800; line-height: 1.3; }
 .recommendation-card-en { color: var(--muted); font-size: 12px; }
 .recommendation-card-meta { color: var(--green); font-size: 12px; line-height: 1.45; }
+.recommendation-card.is-vip-locked { opacity: .48; filter: grayscale(.9); cursor: not-allowed; }
+.recommendation-card.is-vip-locked:hover { border-color: var(--line); }
+.vip-badge { display: inline-block; margin-left: 7px; padding: 2px 6px; border-radius: 999px; background: #9a6b2f; color: #fff; font-size: 10px; font-weight: 800; letter-spacing: .04em; vertical-align: middle; }
 .directory-section-entry { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%; padding: 15px 16px; border: 1px solid #c9dfd7; background: var(--green-soft); color: var(--ink); text-align: left; }
 .directory-section-entry:hover { border-color: var(--green); background: #dcece6; }
 .directory-section-entry > span:nth-child(2) { display: grid; gap: 4px; min-width: 0; }

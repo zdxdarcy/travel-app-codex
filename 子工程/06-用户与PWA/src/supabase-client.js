@@ -202,17 +202,22 @@ async function getUserTier() {
 }
 
 async function listAttractions(cityId) {
-  return publicTable(`attractions?select=id,city_id,slug,name_zh,name_en,tag,summary_zh,description_zh,duration_label,latitude,longitude,map_query,opening_hours,ticket_info,visit_notes,rating,review_count,rating_source&city_id=eq.${encodeURIComponent(cityId)}&is_active=eq.true&order=name_zh`);
+  const query = `attractions?select=id,city_id,slug,name_zh,name_en,tag,summary_zh,description_zh,duration_label,latitude,longitude,map_query,opening_hours,ticket_info,visit_notes,rating,review_count,rating_source,is_vip_only&city_id=eq.${encodeURIComponent(cityId)}&is_active=eq.true&order=name_zh`;
+  try { return await publicTable(query); }
+  catch (error) { if (!/is_vip_only|column.*does not exist|PGRST204|schema/i.test(String(error?.message || error))) throw error; return publicTable(query.replace(",is_vip_only", "")); }
 }
 
 async function getAttraction(attractionId) {
-  const rows = await publicTable(`attractions?select=id,city_id,slug,name_zh,name_en,tag,summary_zh,description_zh,duration_label,latitude,longitude,map_query,opening_hours,ticket_info,visit_notes,rating,review_count,rating_source&is_active=eq.true&id=eq.${encodeURIComponent(attractionId)}&limit=1`);
+  const query = `attractions?select=id,city_id,slug,name_zh,name_en,tag,summary_zh,description_zh,duration_label,latitude,longitude,map_query,opening_hours,ticket_info,visit_notes,rating,review_count,rating_source,is_vip_only&is_active=eq.true&id=eq.${encodeURIComponent(attractionId)}&limit=1`;
+  let rows;
+  try { rows = await publicTable(query); }
+  catch (error) { if (!/is_vip_only|column.*does not exist|PGRST204|schema/i.test(String(error?.message || error))) throw error; rows = await publicTable(query.replace(",is_vip_only", "")); }
   return Array.isArray(rows) ? rows[0] || null : null;
 }
 
 async function queryLatestPublishedAttractions(limit, sortField) {
   const safeLimit = Math.max(1, Math.min(24, Number(limit) || 12));
-  const query = `attractions?select=id,city_id,slug,name_zh,name_en,tag,summary_zh,duration_label,rating,review_count,${sortField},cities!inner(id,country_id,region_id,name_zh,name_en,slug,is_active,countries!inner(id,region_id,name_zh,name_en,slug,iso_code,is_active))&is_active=eq.true&cities.is_active=eq.true&cities.countries.is_active=eq.true&order=${sortField}.desc,id.desc&limit=${safeLimit}`;
+  const query = `attractions?select=id,city_id,slug,name_zh,name_en,tag,summary_zh,duration_label,rating,review_count,is_vip_only,${sortField},cities!inner(id,country_id,region_id,name_zh,name_en,slug,is_active,is_vip_only,countries!inner(id,region_id,name_zh,name_en,slug,iso_code,is_active,is_vip_only))&is_active=eq.true&cities.is_active=eq.true&cities.countries.is_active=eq.true&order=${sortField}.desc,id.desc&limit=${safeLimit}`;
   const rows = await publicTable(query);
   return (Array.isArray(rows) ? rows : []).map((row) => {
     const city = row.cities && !Array.isArray(row.cities) ? row.cities : row.cities?.[0];
@@ -233,7 +238,7 @@ async function listLatestPublishedAttractions(limit = 12) {
 
 async function queryLatestPublishedCities(limit, sortField) {
   const safeLimit = Math.max(1, Math.min(48, Number(limit) || 2));
-  const query = `cities?select=id,country_id,region_id,name_zh,name_en,slug,latitude,longitude,${sortField},countries!inner(id,region_id,name_zh,name_en,slug,iso_code,is_active)&is_active=eq.true&countries.is_active=eq.true&order=${sortField}.desc,id.desc&limit=${safeLimit}`;
+  const query = `cities?select=id,country_id,region_id,name_zh,name_en,slug,latitude,longitude,is_vip_only,${sortField},countries!inner(id,region_id,name_zh,name_en,slug,iso_code,is_active,is_vip_only)&is_active=eq.true&countries.is_active=eq.true&order=${sortField}.desc,id.desc&limit=${safeLimit}`;
   const rows = await publicTable(query);
   return (Array.isArray(rows) ? rows : []).map((row) => {
     const country = row.countries && !Array.isArray(row.countries) ? row.countries : row.countries?.[0];

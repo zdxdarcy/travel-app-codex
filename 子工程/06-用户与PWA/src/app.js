@@ -22,10 +22,20 @@ const makeId = () => crypto.randomUUID?.() || `trip-${Date.now()}-${Math.random(
 const EXTERNAL_VIEWS = {
   guide: "../05-当前行程导览/guide.html"
 };
-const LATEST_CACHE_KEY = "travel-app-latest-catalog-v3";
+const LATEST_CACHE_KEY = "travel-app-latest-catalog-v5";
 const LATEST_CACHE_TTL = 10 * 60 * 1000;
 const LATEST_CACHE_STALE_LIMIT = 24 * 60 * 60 * 1000;
 let latestFeedRequest = null;
+
+// Supabase/PostgREST can return booleans as true/false, 1/0, or strings
+// depending on the data source. Never use Boolean("false"), which is true.
+function isVipValue(value) {
+  return value === true || value === 1 || String(value ?? "").trim().toLowerCase() === "true";
+}
+
+function canViewVipContent() {
+  return ["vip", "管理员", "admin"].includes(String(client.userTier || "").trim().toLowerCase());
+}
 
 const elements = {
   toast: $("#toast"),
@@ -272,8 +282,13 @@ function latestCityItems(items) {
     if (!countries.has(item.country.id)) {
       // Keep the newest attraction as the city's ordering anchor, but make
       // the city the public recommendation target.
+      const countryVip = isVipValue(item.country.is_vip_only);
+      const cityVip = isVipValue(item.city.is_vip_only);
       countries.set(item.country.id, {
         ...item,
+        is_vip_only: countryVip || cityVip,
+        country: { ...item.country, is_vip_only: countryVip },
+        city: { ...item.city, is_vip_only: cityVip || countryVip },
         id: item.city.id,
         sourceAttractionId: item.id
       });
@@ -295,7 +310,13 @@ function renderLatestRelease() {
       : client.isConfigured() ? "公开目录暂无可用的最新景点。" : "公开目录尚未配置，暂无本机缓存。";
     content.innerHTML = `<span class="latest-release-empty">${emptyText}</span>`;
   } else {
-    content.innerHTML = latest.items.map((item) => `<button class="latest-release-card" type="button" data-latest-city="${escapeHtml(item.city.id)}" aria-label="查看 ${escapeHtml(item.country.name_zh)} ${escapeHtml(item.city.name_zh)} 的景点"><strong>${escapeHtml(item.country.name_zh)}</strong><span class="latest-release-city">${escapeHtml(item.city.name_zh)}</span><span class="latest-release-meta">查看城市景点</span></button>`).join("");
+  const sortedItems = [...latest.items].sort((a, b) => Number(isVipValue(a.is_vip_only)) - Number(isVipValue(b.is_vip_only)));
+    content.innerHTML = sortedItems.map((item) => {
+      const locked = isVipValue(item.is_vip_only) && !canViewVipContent();
+      const lockClass = locked ? " is-vip-locked" : "";
+      const vipMark = item.is_vip_only ? `<span class="vip-badge" aria-label="VIP 内容">VIP</span>` : "";
+      return `<button class="latest-release-card${lockClass}" type="button" data-latest-city="${escapeHtml(item.city.id)}" ${locked ? "disabled" : ""} aria-label="查看 ${escapeHtml(item.country.name_zh)} ${escapeHtml(item.city.name_zh)} 的景点"><strong>${escapeHtml(item.country.name_zh)}${vipMark}</strong><span class="latest-release-city">${escapeHtml(item.city.name_zh)}</span><span class="latest-release-meta">${locked ? "VIP 内容" : "查看城市景点"}</span></button>`;
+    }).join("");
   }
   if (latest.status === "loading") status.textContent = latest.items.length ? "正在更新 · 先显示本机缓存" : "";
   else if (latest.status === "error" && latest.fromCache) status.textContent = "网络不可用 · 显示本机缓存";
@@ -304,12 +325,22 @@ function renderLatestRelease() {
   else status.textContent = latest.status === "ready" ? "公开目录" : "";
 }
 
+function canViewCatalogItem(item) {
+  return !isVipValue(item?.is_vip_only) || canViewVipContent();
+}
+
+function denyVipAccess() {
+  showToast("该内容仅限 VIP 用户查看");
+  recommendationStatus("该内容仅限 VIP 用户查看");
+}
+
 async function hydrateLatestRecommendations(force = false) {
   const cached = readLatestCache();
   const cacheAge = cached ? Date.now() - cached.cachedAt : Infinity;
   const cachedItems = cached ? latestCityItems(cached.items) : [];
   const cacheHasExpectedCountries = cachedItems.length >= 2;
-  if (cached && cacheHasExpectedCountries && ((!force && cacheAge <= LATEST_CACHE_TTL) || (!client.isConfigured() && cacheAge <= LATEST_CACHE_STALE_LIMIT))) {
+  const cacheHasVipMetadata = cachedItems.every((item) => Object.prototype.hasOwnProperty.call(item, "is_vip_only"));
+  if (cached && cacheHasExpectedCountries && cacheHasVipMetadata && ((!force && cacheAge <= LATEST_CACHE_TTL) || (!client.isConfigured() && cacheAge <= LATEST_CACHE_STALE_LIMIT))) {
     state.latest = { status: "ready", items: cachedItems, fromCache: true, cachedAt: cached.cachedAt, requestId: state.latest.requestId };
     renderLatestRelease();
     return;
@@ -322,7 +353,7 @@ async function hydrateLatestRecommendations(force = false) {
   }
   latestFeedRequest = (async () => {
     const requestId = state.latest.requestId + 1;
-    const staleItems = cached && cacheHasExpectedCountries && cacheAge <= LATEST_CACHE_STALE_LIMIT ? cachedItems : [];
+    const staleItems = cached && cacheHasExpectedCountries && cacheHasVipMetadata && cacheAge <= LATEST_CACHE_STALE_LIMIT ? cachedItems : [];
     state.latest = { status: "loading", items: staleItems, fromCache: Boolean(staleItems.length), cachedAt: cached?.cachedAt || 0, requestId };
     renderLatestRelease();
     try {
@@ -332,7 +363,10 @@ async function hydrateLatestRecommendations(force = false) {
         items = latestCityItems((cityRows || []).map((entry) => ({ ...entry, id: entry.city?.id, city: entry.city })));
       } else {
         const rows = await client.listLatestPublishedAttractions(24);
-        items = latestCityItems(rows);
+        items = latestCityItems((rows || []).map((row) => ({
+          ...row,
+          is_vip_only: isVipValue(row.is_vip_only) || isVipValue(row.city?.is_vip_only) || isVipValue(row.country?.is_vip_only)
+        })));
       }
       if (state.latest.requestId !== requestId) return;
       state.latest = { status: items.length ? "ready" : "empty", items, fromCache: false, cachedAt: Date.now(), requestId };
@@ -362,8 +396,8 @@ function recommendationBreadcrumb() {
 }
 
 function recommendationCard(item, kind) {
-  const vipOnly = Boolean(item.is_vip_only);
-  const vipLocked = vipOnly && !["VIP", "管理员"].includes(client.userTier);
+  const vipOnly = isVipValue(item.is_vip_only);
+  const vipLocked = vipOnly && !canViewVipContent();
   const lockClass = vipLocked ? " is-vip-locked" : "";
   const vipMark = vipOnly ? `<span class="vip-badge" aria-label="VIP 内容">VIP</span>` : "";
   if (kind === "attraction") {
@@ -381,7 +415,10 @@ function recommendationCard(item, kind) {
 }
 
 function applyCatalogVisibility(items, parent = null) {
-  return (items || []).map((item) => ({ ...item, is_vip_only: Boolean(item.is_vip_only || parent?.is_vip_only) }));
+  return (items || []).map((item) => ({
+    ...item,
+    is_vip_only: isVipValue(item.is_vip_only) || isVipValue(parent?.is_vip_only)
+  }));
 }
 
 function detailNavigation() {
@@ -634,7 +671,7 @@ function renderRecommendations() {
   const routeEntry = level === "cities" && state.recommendations.country
     ? `<button class="directory-section-entry" type="button" data-rec-open="routes" data-id="${escapeHtml(state.recommendations.country.id)}"><span class="directory-section-icon" aria-hidden="true">↝</span><span><strong>推荐路线</strong><small>按区域和天数查看 AI 生成的路线安排</small></span><span aria-hidden="true">→</span></button>`
     : "";
-  const sortedItems = [...items].sort((a, b) => Number(Boolean(a.is_vip_only)) - Number(Boolean(b.is_vip_only)));
+  const sortedItems = [...items].sort((a, b) => Number(isVipValue(a.is_vip_only)) - Number(isVipValue(b.is_vip_only)));
   content.innerHTML = `${routeEntry}<div class="recommendation-grid">${sortedItems.map((item) => recommendationCard(item, kind)).join("")}</div>`;
 }
 
@@ -681,8 +718,9 @@ function loadRecommendationDetailExtras() {
 }
 
 async function hydrateRecommendations({ refreshLatest = false } = {}) {
-  await hydrateLatestRecommendations(refreshLatest);
   await client.getUserTier?.();
+  await hydrateLatestRecommendations(refreshLatest);
+  renderLatestRelease();
   if (!client.isConfigured()) {
     recommendationStatus("游客模式：目录需要部署配置后读取。");
     return;
@@ -715,6 +753,7 @@ async function hydrateRecommendations({ refreshLatest = false } = {}) {
 async function openLatestCity(cityId) {
   const item = state.latest.items.find((entry) => entry.city?.id === cityId);
   if (!item?.city?.id || !item.country?.id) return;
+  if (!canViewCatalogItem(item)) { denyVipAccess(); return; }
   if (!client.isConfigured()) {
     showToast("目录尚未配置，暂时无法打开景点详情");
     return;
@@ -753,6 +792,9 @@ async function openLatestCity(cityId) {
 
 async function openRecommendation(kind, id) {
   const rec = state.recommendations;
+  const currentItem = rec.items.find((item) => item.id === id);
+  if (currentItem && !canViewCatalogItem(currentItem)) { denyVipAccess(); return; }
+  if (kind === "routes" && rec.country && !canViewCatalogItem(rec.country)) { denyVipAccess(); return; }
   if (kind === "attraction") {
     openRecommendationDetail(id);
     return;
@@ -778,6 +820,7 @@ async function openRecommendation(kind, id) {
       rec.items = rec.routes;
     } else if (kind === "route") {
       rec.route = rec.items.find((item) => item.id === id) || null;
+      if (rec.route && rec.country?.is_vip_only && !canViewCatalogItem(rec.country)) { denyVipAccess(); return; }
       rec.level = "route-detail";
       rec.routeDays = await client.listRecommendedRouteDays(id);
       rec.routeDays = await Promise.all(rec.routeDays.map(async (day) => ({
@@ -804,6 +847,7 @@ async function openRecommendation(kind, id) {
 async function openRouteAttraction(attractionId) {
   const rec = state.recommendations;
   if (!attractionId || !rec.route) return;
+  if (!canViewCatalogItem(rec.route) || !canViewCatalogItem(rec.country)) { denyVipAccess(); return; }
   rec.loading = true;
   renderRecommendations();
   try {
@@ -845,6 +889,7 @@ function openRecommendationDetail(id) {
   const rec = state.recommendations;
   const attraction = rec.items.find((item) => item.id === id) || rec.detail;
   if (!attraction) return;
+  if (!canViewCatalogItem(attraction) || (rec.city && !canViewCatalogItem(rec.city)) || (rec.country && !canViewCatalogItem(rec.country))) { denyVipAccess(); return; }
   rec.detail = attraction;
   rec.detailId = id;
   rec.level = "detail";
