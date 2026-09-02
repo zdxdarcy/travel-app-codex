@@ -565,6 +565,15 @@
     overflow-y:auto!important;overflow-x:hidden!important;-webkit-overflow-scrolling:touch!important;
     overscroll-behavior-y:contain!important;touch-action:pan-y!important;pointer-events:auto!important
   }
+  /* Tighten the daily card edges so the first stop starts at the rail and the
+     last stop does not leave a second oversized blank band. */
+  body.planner-v2-day-lock .pv2-day-body{padding-top:0!important;padding-bottom:0!important}
+  body.planner-v2-day-lock .pv2-bottom-spacer{height:24px!important}
+  /* Keep the range handle above both map tiles and the panel surface. */
+  body.planner-v2-day-lock .pv2-map-stage{z-index:2000!important;pointer-events:auto!important}
+  /* Sorting is a drag interaction, never a text-selection interaction. */
+  body.planner-v2-sort,.planner-v2-sort *{-webkit-user-select:none!important;user-select:none!important}
+  .planner-v2-sort .pv2-stop-tools [data-v2-drag]{touch-action:none!important}
 </style>
 </head>
 <body class="planner-ui-v2">
@@ -2550,12 +2559,25 @@ function initializePlannerUI(){
   const root=document.getElementById("plannerV2Root");
   const sheet=document.getElementById("plannerV2Sheet");
   let screen="country", plannerView="overview", addDay=-1, addKind="", insertAt=-1, mapFocusIndex=-1, mapStage=0, routeDraft=null, routeFocus="", addDraft=null, sortMode=false;
+  const RETURN_VIEW_KEY="travel-planner-return-view-v1";
+  function readReturnView(){
+    try{ const value=JSON.parse(localStorage.getItem(RETURN_VIEW_KEY)||"null"); return value&&typeof value==="object"?value:null; }catch(_){ return null; }
+  }
+  function saveReturnView(view,day){
+    try{ localStorage.setItem(RETURN_VIEW_KEY,JSON.stringify({tripId:String(plan.tripId||editTripId||""),view,day:Number.isInteger(day)?day:null})); }catch(_){ }
+  }
   let entryMode=window.__plannerEntryMode||"pending"; // pending -> login/guest; favorites -> 登录用户收藏；guest -> 游客公开目录
   window.__plannerSetEntryMode=(mode)=>{ entryMode=mode||"pending"; window.__plannerEntryMode=entryMode; };
   window.__plannerShowCountry=()=>{ screen="country"; plannerView="overview"; addDay=-1; addKind=""; insertAt=-1; window.renderPlannerV2?.(); };
   window.__plannerShowLoadedPlan=()=>{
     if(!plan.enteredPlan||!plan.days?.length) return;
-    screen=REQUESTED_SETUP ? "setup" : "plan"; plannerView=Number.isInteger(REQUESTED_DAY) ? "day" : "overview"; addDay=-1; addKind=""; insertAt=-1;
+    const remembered=readReturnView();
+    const sameTrip=remembered&&String(remembered.tripId||"")===String(plan.tripId||editTripId||"");
+    const rememberedDay=sameTrip&&Number.isInteger(remembered.day)&&remembered.day>=0&&remembered.day<plan.days.length?remembered.day:null;
+    const dayIndex=Number.isInteger(REQUESTED_DAY)?REQUESTED_DAY:rememberedDay;
+    screen=REQUESTED_SETUP ? "setup" : "plan"; plannerView=Number.isInteger(dayIndex) ? "day" : "overview";
+    if(Number.isInteger(dayIndex)) plan.activeDayIndex=dayIndex;
+    addDay=-1; addKind=""; insertAt=-1;
     window.renderPlannerV2?.();
   };
   const routeCache=new Map();
@@ -2618,8 +2640,8 @@ function initializePlannerUI(){
     if(start!==undefined) plan.departDate=start; if(end!==undefined) plan.returnDate=end; if(name!==undefined) plan.tripName=name.trim(); if(notes!==undefined) plan.notes=notes.trim(); savePlan(); screen="country"; renderPlannerV2();
   }
   function centerActiveDayTab(){ requestAnimationFrame(()=>{ const tab=root.querySelector(".pv2-daytab.is-active"); if(!tab) return; tab.scrollIntoView({behavior:"smooth",block:"nearest",inline:"center"}); }); }
-  function v2GoDay(index){ plan.activeDayIndex=Math.max(0,Math.min(plan.days.length-1,index)); mapFocusIndex=-1; plannerView="day"; updatePlannerUrl({tripId:plan.tripId||editTripId,day:plan.activeDayIndex,view:"day"}); savePlan(); renderPlannerV2(); centerActiveDayTab(); }
-  function v2ShowOverview(){ plannerView="overview"; updatePlannerUrl({tripId:plan.tripId||editTripId,view:"overview"}); renderPlannerV2(); }
+  function v2GoDay(index){ plan.activeDayIndex=Math.max(0,Math.min(plan.days.length-1,index)); mapFocusIndex=-1; plannerView="day"; updatePlannerUrl({tripId:plan.tripId||editTripId,day:plan.activeDayIndex,view:"day"}); saveReturnView("day",plan.activeDayIndex); savePlan(); renderPlannerV2(); centerActiveDayTab(); }
+  function v2ShowOverview(){ plannerView="overview"; updatePlannerUrl({tripId:plan.tripId||editTripId,view:"overview"}); saveReturnView("overview",null); renderPlannerV2(); }
   function v2ToggleSort(){ sortMode=!sortMode; document.body.classList.toggle("planner-v2-sort",sortMode); renderPlannerV2(); }
   function v2Move(dayIndex,itemIndex,direction){ const items=plan.days[dayIndex].attractions; const target=itemIndex+direction; if(target<0||target>=items.length) return; [items[itemIndex],items[target]]=[items[target],items[itemIndex]]; savePlan(); renderPlannerV2(); }
   function v2Delete(dayIndex,itemIndex){
@@ -2883,6 +2905,10 @@ function initializePlannerUI(){
   document.body.classList.add("planner-ui-v2");
   const pv2Boot=()=>{ if(typeof catalogReady!=="undefined"&&catalogReady){ if(entryMode==="pending"&&localStorage.getItem("taf_guest")==="1") entryMode="guest"; window.renderPlannerV2(); } else setTimeout(pv2Boot,80); };
   pv2Boot();
+  /* Mobile Safari may suspend and recreate the iframe while returning from
+     another app. Re-apply the URL/remembered day after the page is restored. */
+  window.addEventListener("pageshow",()=>{ if(plan.enteredPlan&&plan.days?.length) window.__plannerShowLoadedPlan?.(); });
+  document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"&&plan.enteredPlan&&plan.days?.length&&plannerView==="overview"){ const remembered=readReturnView(); if(remembered?.view==="day") window.__plannerShowLoadedPlan?.(); } });
 })();
 </script>
 </body>
