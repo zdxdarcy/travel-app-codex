@@ -571,6 +571,10 @@
   body.planner-v2-day-lock .pv2-bottom-spacer{height:24px!important}
   /* Keep the range handle above both map tiles and the panel surface. */
   body.planner-v2-day-lock .pv2-map-stage{z-index:2000!important;pointer-events:auto!important}
+  /* Keep the handle inside the stage's clipping box so the whole touch target
+     remains visible above the map/panel seam on iPhone Safari. */
+  body.planner-v2-day-lock .pv2-map-stage{top:0!important;transform:translateX(-50%) translateY(-50%)!important}
+  body.planner-v2-day-lock .pv2-map-stage::before{top:23px!important}
   /* Sorting is a drag interaction, never a text-selection interaction. */
   body.planner-v2-sort,.planner-v2-sort *{-webkit-user-select:none!important;user-select:none!important}
   .planner-v2-sort .pv2-stop-tools [data-v2-drag]{touch-action:none!important}
@@ -2569,13 +2573,15 @@ function initializePlannerUI(){
   let entryMode=window.__plannerEntryMode||"pending"; // pending -> login/guest; favorites -> 登录用户收藏；guest -> 游客公开目录
   window.__plannerSetEntryMode=(mode)=>{ entryMode=mode||"pending"; window.__plannerEntryMode=entryMode; };
   window.__plannerShowCountry=()=>{ screen="country"; plannerView="overview"; addDay=-1; addKind=""; insertAt=-1; window.renderPlannerV2?.(); };
-  window.__plannerShowLoadedPlan=()=>{
+  window.__plannerShowLoadedPlan=(restoreDayOnly=false)=>{
     if(!plan.enteredPlan||!plan.days?.length) return;
     const remembered=readReturnView();
     const sameTrip=remembered&&String(remembered.tripId||"")===String(plan.tripId||editTripId||"");
     const rememberedDay=sameTrip&&Number.isInteger(remembered.day)&&remembered.day>=0&&remembered.day<plan.days.length?remembered.day:null;
     const dayIndex=Number.isInteger(REQUESTED_DAY)?REQUESTED_DAY:rememberedDay;
-    screen=REQUESTED_SETUP ? "setup" : "plan"; plannerView=Number.isInteger(dayIndex) ? "day" : "overview";
+    const restoreRememberedDay=restoreDayOnly&&Number.isInteger(rememberedDay);
+    screen=(REQUESTED_SETUP&&!restoreRememberedDay) ? "setup" : "plan";
+    plannerView=Number.isInteger(dayIndex) ? "day" : "overview";
     if(Number.isInteger(dayIndex)) plan.activeDayIndex=dayIndex;
     addDay=-1; addKind=""; insertAt=-1;
     window.renderPlannerV2?.();
@@ -2907,8 +2913,8 @@ function initializePlannerUI(){
   pv2Boot();
   /* Mobile Safari may suspend and recreate the iframe while returning from
      another app. Re-apply the URL/remembered day after the page is restored. */
-  window.addEventListener("pageshow",()=>{ if(plan.enteredPlan&&plan.days?.length) window.__plannerShowLoadedPlan?.(); });
-  document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"&&plan.enteredPlan&&plan.days?.length&&plannerView==="overview"){ const remembered=readReturnView(); if(remembered?.view==="day") window.__plannerShowLoadedPlan?.(); } });
+  window.addEventListener("pageshow",()=>{ if(plan.enteredPlan&&plan.days?.length&&plannerView==="day") window.__plannerShowLoadedPlan?.(true); });
+  document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"&&plan.enteredPlan&&plan.days?.length){ const remembered=readReturnView(); if(remembered?.view==="day") window.__plannerShowLoadedPlan?.(true); } });
 })();
 </script>
 </body>
