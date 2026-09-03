@@ -555,7 +555,8 @@
   }
   body.planner-v2-day-lock .pv2-plan-stage:not(:has(.pv2-overview)) .pv2-trip-panel{
     display:flex!important;flex:1 1 auto!important;min-height:0!important;height:auto!important;
-    max-height:none!important;flex-direction:column!important;overflow:hidden!important
+    max-height:none!important;flex-direction:column!important;overflow:hidden!important;
+    margin:0!important;padding:0 16px!important;border-radius:0!important;border-left:0!important;border-right:0!important
   }
   body.planner-v2-day-lock .pv2-plan-stage:not(:has(.pv2-overview)) .pv2-days{
     flex:0 0 56px!important;min-height:56px!important;overflow-x:auto!important;overflow-y:hidden!important
@@ -567,8 +568,10 @@
   }
   /* Tighten the daily card edges so the first stop starts at the rail and the
      last stop does not leave a second oversized blank band. */
-  body.planner-v2-day-lock .pv2-day-body{padding-top:0!important;padding-bottom:0!important}
-  body.planner-v2-day-lock .pv2-bottom-spacer{height:24px!important}
+  body.planner-v2-day-lock .pv2-days{margin-left:-16px!important;margin-right:-16px!important}
+  body.planner-v2-day-lock .pv2-day-body{padding:0!important}
+  body.planner-v2-day-lock .pv2-stops:after{height:16px!important}
+  body.planner-v2-day-lock .pv2-stop:first-child{margin-top:0!important;padding-top:0!important}
   /* Keep the range handle above both map tiles and the panel surface. */
   body.planner-v2-day-lock .pv2-map-stage{z-index:2000!important;pointer-events:auto!important}
   /* Keep the handle inside the stage's clipping box so the whole touch target
