@@ -569,6 +569,9 @@
   /* Tighten the daily card edges so the first stop starts at the rail and the
      last stop does not leave a second oversized blank band. */
   body.planner-v2-day-lock .pv2-days{margin-left:-16px!important;margin-right:-16px!important}
+  /* In the fixed daily layout the date rail must occupy its flex row. The
+     historical sticky offset visually moved it over the first attraction. */
+  body.planner-v2-day-lock .pv2-days{position:relative!important;top:auto!important;margin-top:0!important}
   body.planner-v2-day-lock .pv2-day-body{padding:0!important}
   body.planner-v2-day-lock .pv2-stops:after{height:16px!important}
   body.planner-v2-day-lock .pv2-stop:first-child{margin-top:0!important;padding-top:0!important}
