@@ -579,7 +579,10 @@
   body.planner-v2-day-lock .pv2-map-stage{z-index:2000!important;pointer-events:auto!important}
   /* Keep the handle inside the stage's clipping box so the whole touch target
      remains visible above the map/panel seam on iPhone Safari. */
-  body.planner-v2-day-lock .pv2-map-stage{top:0!important;transform:translateX(-50%) translateY(-50%)!important}
+  body.planner-v2-day-lock .pv2-plan-stage-0 .pv2-map-stage{top:184px!important}
+  body.planner-v2-day-lock .pv2-plan-stage-1 .pv2-map-stage{top:330px!important}
+  body.planner-v2-day-lock .pv2-plan-stage-2 .pv2-map-stage{top:440px!important}
+  body.planner-v2-day-lock .pv2-map-stage{transform:translateX(-50%) translateY(-50%)!important}
   body.planner-v2-day-lock .pv2-map-stage::before{top:23px!important}
   body.planner-v2-day-lock .pv2-trip-panel{transition:transform .18s ease;transform:translateY(var(--panel-drag-offset,0px))}
   body.planner-v2-day-lock .pv2-map-stage.is-dragging{transition:none!important}
@@ -587,7 +590,7 @@
   body.planner-v2-sort,.planner-v2-sort *{-webkit-user-select:none!important;user-select:none!important}
   .planner-v2-sort .pv2-stop-tools [data-v2-drag]{touch-action:none!important}
   body.planner-v2-day-lock .pv2-plan-stage:not(:has(.pv2-overview)){height:100%!important}
-  body.planner-v2-day-lock .pv2-plan-stage:not(:has(.pv2-overview)) .pv2-trip-panel{overflow:visible!important}
+  body.planner-v2-day-lock .pv2-plan-stage:not(:has(.pv2-overview)) .pv2-trip-panel{overflow:hidden!important}
   body.planner-v2-day-lock .pv2-map-stage{position:absolute!important;isolation:isolate!important}
   .pv2-stop-thumb img{display:block;width:100%;height:100%;object-fit:cover;border-radius:16px}
 </style>
