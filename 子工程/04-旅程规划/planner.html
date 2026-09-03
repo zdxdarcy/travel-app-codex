@@ -536,7 +536,7 @@
   .pv2-plan-stage:not(:has(.pv2-overview)) .pv2-day-heading{margin-bottom:10px}
   .pv2-plan-stage:not(:has(.pv2-overview)) .pv2-day-heading h2{display:none}
   .pv2-plan-stage:not(:has(.pv2-overview)) .pv2-day-heading p{display:none}
-  .pv2-day-actions{position:fixed;left:16px;bottom:calc(var(--nav-height) + 15px);z-index:80;display:flex;gap:8px}
+  .pv2-day-actions{position:fixed;left:16px;bottom:10px;z-index:80;display:flex;gap:8px}
   .pv2-day-actions .pv2-add,.pv2-day-actions .pv2-sort{width:48px;height:48px;border:0;border-radius:50%;box-shadow:0 8px 18px rgba(20,50,40,.18);cursor:pointer}
   .pv2-day-actions .pv2-add{background:#111;color:#fff;font-size:26px}
   .pv2-day-actions .pv2-sort{background:#fff;color:#215f51;font-size:20px}
@@ -589,7 +589,9 @@
   /* Sorting is a drag interaction, never a text-selection interaction. */
   body.planner-v2-sort,.planner-v2-sort *{-webkit-user-select:none!important;user-select:none!important}
   .planner-v2-sort .pv2-stop-tools [data-v2-drag]{touch-action:none!important}
-  body.planner-v2-day-lock .pv2-plan-stage:not(:has(.pv2-overview)){height:100%!important}
+  /* Percentage height collapses in the embedded iframe (its parent has no
+     intrinsic height), making the daily list scroller zero pixels tall. */
+  body.planner-v2-day-lock .pv2-plan-stage:not(:has(.pv2-overview)){height:calc(100dvh - 58px)!important}
   body.planner-v2-day-lock .pv2-plan-stage:not(:has(.pv2-overview)) .pv2-trip-panel{overflow:hidden!important}
   body.planner-v2-day-lock .pv2-map-stage{position:absolute!important;isolation:isolate!important}
   .pv2-stop-thumb img{display:block;width:100%;height:100%;object-fit:cover;border-radius:16px}
